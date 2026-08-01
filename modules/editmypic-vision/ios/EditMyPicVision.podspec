@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.author         = 'Valdy'
   s.homepage       = 'https://github.com/valdy247/EditMyPic'
   s.license        = { :type => 'MIT' }
-  s.platforms      = { :ios => '16.4' }
+  s.platforms      = { :ios => '15.1' }
   s.source         = { :git => 'https://github.com/valdy247/EditMyPic.git' }
   s.static_framework = true
 
