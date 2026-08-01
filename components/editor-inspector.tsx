@@ -30,6 +30,7 @@ import { FILTER_PRESETS } from "@/src/editor/presets";
 import type { EditorController } from "@/src/editor/use-editor-controller";
 import {
   DEFAULT_SETTINGS,
+  type BackgroundMode,
   type EditorSettings,
   type FilterId,
   type ImageAsset,
@@ -45,6 +46,28 @@ const FILTER_PREVIEW_SETTINGS = Object.fromEntries(
     } satisfies EditorSettings,
   ]),
 ) as Record<FilterId, EditorSettings>;
+
+const BACKGROUND_MODES: {
+  id: BackgroundMode;
+  icon: string;
+  label: string;
+}[] = [
+  { id: "original", icon: "▧", label: "Original" },
+  { id: "transparent", icon: "▦", label: "Transparente" },
+  { id: "blur", icon: "◉", label: "Desenfoque" },
+  { id: "photo", icon: "▣", label: "Foto" },
+];
+
+const BACKGROUND_PALETTES = [
+  { label: "Blanco", primary: "#FFFFFF", secondary: "#FFFFFF" },
+  { label: "Noche", primary: "#111318", secondary: "#111318" },
+  { label: "Lavanda", primary: "#F1EDFF", secondary: "#F1EDFF" },
+  { label: "Arena", primary: "#F2E3CF", secondary: "#F2E3CF" },
+  { label: "Cielo", primary: "#CDEBFF", secondary: "#CDEBFF" },
+  { label: "Aura", primary: "#FFB6D9", secondary: "#7057FF" },
+  { label: "Sunset", primary: "#FFCE83", secondary: "#EE6C9F" },
+  { label: "Ocean", primary: "#5DE0E6", secondary: "#405DE6" },
+];
 
 const FilterThumbnail = memo(function FilterThumbnail({
   asset,
@@ -77,10 +100,15 @@ export function EditorDock({
   effectivePanelExpanded: boolean;
 }) {
   return (
-    <View style={styles.toolDock}>
+    <ScrollView
+      horizontal
+      style={styles.toolDockScroll}
+      contentContainerStyle={styles.toolDock}
+      showsHorizontalScrollIndicator={false}
+      bounces={false}
+    >
       {TAB_ITEMS.map((tab) => {
-        const active =
-          editor.activeTab === tab.id && effectivePanelExpanded;
+        const active = editor.activeTab === tab.id && effectivePanelExpanded;
         return (
           <Pressable
             key={tab.id}
@@ -101,7 +129,7 @@ export function EditorDock({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -170,12 +198,7 @@ export function EditorPanelBody({
       <View style={styles.sectionRow}>
         <Text style={styles.sectionLabel}>LOOKS</Text>
         <Pressable disabled={!editor.asset} onPress={editor.saveCurrentLook}>
-          <Text
-            style={[
-              styles.inlineAction,
-              !editor.asset && styles.textMuted,
-            ]}
-          >
+          <Text style={[styles.inlineAction, !editor.asset && styles.textMuted]}>
             Guardar mi look
           </Text>
         </Pressable>
@@ -193,10 +216,7 @@ export function EditorPanelBody({
               key={preset.id}
               disabled={!editor.asset}
               onPress={() => editor.selectFilter(preset.id)}
-              style={[
-                styles.filterCard,
-                selected && styles.filterCardActive,
-              ]}
+              style={[styles.filterCard, selected && styles.filterCardActive]}
             >
               <View style={styles.filterPreview}>
                 <FilterThumbnail
@@ -329,16 +349,10 @@ export function EditorPanelBody({
                   `Formato ${preset.label}`,
                 )
               }
-              style={[
-                styles.cropPreset,
-                selected && styles.cropPresetActive,
-              ]}
+              style={[styles.cropPreset, selected && styles.cropPresetActive]}
             >
               <Text
-                style={[
-                  styles.cropRatio,
-                  selected && styles.cropRatioActive,
-                ]}
+                style={[styles.cropRatio, selected && styles.cropRatioActive]}
               >
                 {preset.ratio}
               </Text>
@@ -466,6 +480,256 @@ export function EditorPanelBody({
     </>
   );
 
+  const renderBackground = () => {
+    const hasMask = Boolean(editor.settings.foregroundMaskUri);
+    return (
+      <>
+        <Pressable
+          disabled={!editor.asset || editor.processingAction !== null}
+          onPress={() => void editor.removeBackground()}
+          style={({ pressed }) => [
+            styles.backgroundHero,
+            (!editor.asset || editor.processingAction !== null) &&
+              styles.buttonMuted,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <View style={styles.backgroundHeroIcon}>
+            {editor.processingAction === "background" ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.backgroundHeroIconText}>✂</Text>
+            )}
+          </View>
+          <View style={styles.backgroundHeroCopy}>
+            <Text style={styles.backgroundHeroTitle}>
+              {hasMask ? "Detectar de nuevo" : "Quitar fondo"}
+            </Text>
+            <Text style={styles.backgroundHeroText}>
+              Apple Vision separa el sujeto dentro de tu iPhone.
+            </Text>
+          </View>
+          {hasMask ? <Text style={styles.readyCheck}>✓</Text> : null}
+        </Pressable>
+
+        {hasMask ? (
+          <>
+            <Text style={[styles.sectionLabel, styles.backgroundSectionLabel]}>
+              TIPO DE FONDO
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.backgroundModeRow}
+            >
+              {BACKGROUND_MODES.map((mode) => {
+                const active = editor.settings.backgroundMode === mode.id;
+                return (
+                  <Pressable
+                    key={mode.id}
+                    onPress={() => {
+                      if (mode.id === "photo") {
+                        void editor.pickBackgroundPhoto();
+                      } else {
+                        editor.setBackgroundMode(mode.id);
+                      }
+                    }}
+                    style={[
+                      styles.backgroundModeCard,
+                      active && styles.backgroundModeCardActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.backgroundModeIcon,
+                        active && styles.backgroundModeIconActive,
+                      ]}
+                    >
+                      {mode.icon}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.backgroundModeLabel,
+                        active && styles.backgroundModeLabelActive,
+                      ]}
+                    >
+                      {mode.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={[styles.sectionLabel, styles.backgroundSectionLabel]}>
+              COLOR Y DEGRADADO
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.paletteRow}
+            >
+              {BACKGROUND_PALETTES.map((palette) => {
+                const gradient = palette.primary !== palette.secondary;
+                return (
+                  <Pressable
+                    key={palette.label}
+                    accessibilityLabel={`Fondo ${palette.label}`}
+                    onPress={() =>
+                      editor.setBackgroundColors(
+                        palette.primary,
+                        palette.secondary,
+                        gradient,
+                      )
+                    }
+                    style={styles.paletteItem}
+                  >
+                    <View style={styles.paletteSwatchRow}>
+                      <View
+                        style={[
+                          styles.paletteHalf,
+                          { backgroundColor: palette.primary },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.paletteHalf,
+                          { backgroundColor: palette.secondary },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.paletteLabel}>{palette.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {editor.settings.backgroundMode === "blur"
+              ? renderAdjustment(editor.backgroundBlurAdjustment)
+              : null}
+            {editor.backgroundAdjustments.map(renderAdjustment)}
+
+            <View style={styles.localPrivacyCard}>
+              <Text style={styles.localPrivacyIcon}>⌾</Text>
+              <View style={styles.localPrivacyCopy}>
+                <Text style={styles.localPrivacyTitle}>Privado y local</Text>
+                <Text style={styles.localPrivacyText}>
+                  Quitar y cambiar el fondo no sube la foto a internet.
+                </Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <View style={styles.backgroundEmptyCard}>
+            <Text style={styles.backgroundEmptyTitle}>Un toque primero</Text>
+            <Text style={styles.backgroundEmptyText}>
+              La app detectará personas, mascotas u objetos destacados. Después
+              podrás elegir transparencia, color, foto o desenfoque.
+            </Text>
+          </View>
+        )}
+      </>
+    );
+  };
+
+  const renderErase = () => (
+    <>
+      <View style={styles.eraseGuideCard}>
+        <View style={styles.eraseGuideIcon}>
+          <Text style={styles.eraseGuideIconText}>⌫</Text>
+        </View>
+        <View style={styles.eraseGuideCopy}>
+          <Text style={styles.eraseGuideTitle}>Pinta sobre lo que sobra</Text>
+          <Text style={styles.eraseGuideText}>
+            Marca personas, cables, letreros u objetos. Usa trazos pequeños para
+            obtener bordes más naturales.
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.brushCard}>
+        <View style={styles.adjustmentHeader}>
+          <Text style={styles.adjustmentLabel}>Tamaño del pincel</Text>
+          <Text style={styles.adjustmentValue}>
+            {Math.round(editor.eraseBrushSize * 100)}
+          </Text>
+        </View>
+        <EditorSlider
+          disabled={!editor.asset || editor.processingAction !== null}
+          minimumValue={0.025}
+          maximumValue={0.22}
+          step={0.005}
+          value={editor.eraseBrushSize}
+          onValueChange={editor.setEraseBrushSize}
+          onSlidingComplete={editor.setEraseBrushSize}
+        />
+      </View>
+
+      <View style={styles.eraseActionsRow}>
+        <Pressable
+          disabled={editor.eraseStrokes.length === 0}
+          onPress={editor.undoEraseStroke}
+          style={({ pressed }) => [
+            styles.eraseSecondaryButton,
+            editor.eraseStrokes.length === 0 && styles.buttonMuted,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.eraseSecondaryText}>↶ Último trazo</Text>
+        </Pressable>
+        <Pressable
+          disabled={editor.eraseStrokes.length === 0}
+          onPress={editor.clearEraseSelection}
+          style={({ pressed }) => [
+            styles.eraseSecondaryButton,
+            editor.eraseStrokes.length === 0 && styles.buttonMuted,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.eraseSecondaryText}>Limpiar</Text>
+        </Pressable>
+      </View>
+
+      <Pressable
+        disabled={
+          !editor.asset ||
+          editor.eraseStrokes.length === 0 ||
+          editor.processingAction !== null
+        }
+        onPress={() => void editor.applyObjectErase()}
+        style={({ pressed }) => [
+          styles.erasePrimaryButton,
+          (!editor.asset ||
+            editor.eraseStrokes.length === 0 ||
+            editor.processingAction !== null) &&
+            styles.buttonMuted,
+          pressed && styles.buttonPressed,
+        ]}
+      >
+        {editor.processingAction === "erase" ? (
+          <>
+            <ActivityIndicator color="#fff" />
+            <Text style={styles.erasePrimaryText}>Reconstruyendo…</Text>
+          </>
+        ) : (
+          <Text style={styles.erasePrimaryText}>
+            Borrar selección · {editor.eraseStrokes.length || 0}
+          </Text>
+        )}
+      </Pressable>
+
+      <View style={styles.onlinePrivacyCard}>
+        <Text style={styles.onlinePrivacyIcon}>✦</Text>
+        <View style={styles.onlinePrivacyCopy}>
+          <Text style={styles.onlinePrivacyTitle}>IA online</Text>
+          <Text style={styles.onlinePrivacyText}>
+            Borrar envía una copia temporal y la máscara al servicio de edición.
+            No se incluye tu foto original sin cambios.
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+
   const renderExport = () => (
     <View style={styles.exportStack}>
       <View style={styles.exportSummary}>
@@ -505,6 +769,12 @@ export function EditorPanelBody({
           </Pressable>
         ))}
       </View>
+
+      {editor.settings.backgroundMode === "transparent" ? (
+        <Text style={styles.transparentHint}>
+          La transparencia se exporta únicamente en PNG.
+        </Text>
+      ) : null}
 
       {editor.exportFormat === "jpeg" ? (
         <>
@@ -616,6 +886,10 @@ export function EditorPanelBody({
         return renderAdjust();
       case "crop":
         return renderCrop();
+      case "background":
+        return renderBackground();
+      case "erase":
+        return renderErase();
       case "effects":
         return <>{EFFECT_ADJUSTMENTS.map(renderAdjustment)}</>;
       case "export":
@@ -641,10 +915,7 @@ export function EditorPanelBody({
               onPress={editor.resetCurrentSection}
             >
               <Text
-                style={[
-                  styles.resetText,
-                  !editor.asset && styles.textMuted,
-                ]}
+                style={[styles.resetText, !editor.asset && styles.textMuted]}
               >
                 Reiniciar
               </Text>
