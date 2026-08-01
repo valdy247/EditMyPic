@@ -35,18 +35,38 @@ function multiply(after: Matrix, before: Matrix): Matrix {
   return output;
 }
 
-function brightness(value: number): Matrix {
-  const offset = clamp(value - 1, -0.6, 0.6) * 0.32;
+function scaleRgb(value: number): Matrix {
   return [
-    1, 0, 0, 0, offset,
-    0, 1, 0, 0, offset,
-    0, 0, 1, 0, offset,
+    value, 0, 0, 0, 0,
+    0, value, 0, 0, 0,
+    0, 0, value, 0, 0,
     0, 0, 0, 1, 0,
   ];
 }
 
-function contrast(value: number): Matrix {
-  const amount = 1 + clamp(value - 1, -0.6, 0.6) * 0.7;
+function offsetRgb(red: number, green: number, blue: number): Matrix {
+  return [
+    1, 0, 0, 0, red,
+    0, 1, 0, 0, green,
+    0, 0, 1, 0, blue,
+    0, 0, 0, 1, 0,
+  ];
+}
+
+function exposure(value: number): Matrix {
+  const stops = clamp(value, -1, 1) * 0.55;
+  return scaleRgb(Math.pow(2, stops));
+}
+
+function brightness(value: number): Matrix {
+  const amount = clamp(value - 1, -0.6, 0.6);
+  return offsetRgb(amount * 0.24, amount * 0.24, amount * 0.24);
+}
+
+function contrast(value: number, clarity: number, sharpness: number): Matrix {
+  const base = clamp(value - 1, -0.6, 0.6) * 0.7;
+  const detail = clamp(clarity, -1, 1) * 0.12 + clamp(sharpness, 0, 1) * 0.045;
+  const amount = clamp(1 + base + detail, 0.48, 1.58);
   const offset = 0.5 * (1 - amount);
 
   return [
@@ -57,8 +77,53 @@ function contrast(value: number): Matrix {
   ];
 }
 
-function saturation(value: number): Matrix {
-  const amount = clamp(1 + (value - 1) * 0.85, 0.15, 1.85);
+function tone(
+  highlights: number,
+  shadows: number,
+  whites: number,
+  blacks: number,
+): Matrix {
+  const hi = clamp(highlights, -1, 1);
+  const sh = clamp(shadows, -1, 1);
+  const wh = clamp(whites, -1, 1);
+  const bl = clamp(blacks, -1, 1);
+
+  let scale = 1;
+  let offset = 0;
+
+  if (hi >= 0) {
+    scale += hi * 0.13;
+    offset += hi * 0.01;
+  } else {
+    scale += hi * 0.18;
+    offset -= hi * 0.075;
+  }
+
+  if (sh >= 0) {
+    scale -= sh * 0.16;
+    offset += sh * 0.16;
+  } else {
+    scale -= sh * 0.08;
+    offset += sh * 0.08;
+  }
+
+  scale += wh * 0.14;
+  offset += bl * 0.09;
+
+  return [
+    scale, 0, 0, 0, offset,
+    0, scale, 0, 0, offset,
+    0, 0, scale, 0, offset,
+    0, 0, 0, 1, 0,
+  ];
+}
+
+function saturation(value: number, vibrance: number): Matrix {
+  const amount = clamp(
+    1 + (value - 1) * 0.85 + clamp(vibrance, -1, 1) * 0.42,
+    0,
+    2,
+  );
   const red = 0.2126;
   const green = 0.7152;
   const blue = 0.0722;
@@ -72,24 +137,21 @@ function saturation(value: number): Matrix {
   ];
 }
 
-function warmth(value: number): Matrix {
-  const amount = clamp(value, -1, 1);
-  const redOffset = amount * 0.075;
-  const greenOffset = amount * 0.012;
-  const blueOffset = amount * -0.075;
+function warmthAndTint(warmth: number, tint: number): Matrix {
+  const warm = clamp(warmth, -1, 1);
+  const magenta = clamp(tint, -1, 1);
 
-  return [
-    1, 0, 0, 0, redOffset,
-    0, 1, 0, 0, greenOffset,
-    0, 0, 1, 0, blueOffset,
-    0, 0, 0, 1, 0,
-  ];
+  const red = warm * 0.07 + magenta * 0.028;
+  const green = warm * 0.01 - magenta * 0.045;
+  const blue = -warm * 0.07 + magenta * 0.028;
+
+  return offsetRgb(red, green, blue);
 }
 
 function fade(value: number): Matrix {
   const amount = clamp(value, 0, 1);
-  const scale = 1 - amount * 0.16;
-  const offset = amount * 0.08;
+  const scale = 1 - amount * 0.17;
+  const offset = amount * 0.085;
 
   return [
     scale, 0, 0, 0, offset,
@@ -101,26 +163,34 @@ function fade(value: number): Matrix {
 
 function grayscale(value: number): Matrix {
   const amount = clamp(value, 0, 1);
-  const saturationAmount = 1 - amount;
+  const remaining = 1 - amount;
   const red = 0.2126;
   const green = 0.7152;
   const blue = 0.0722;
-  const inverse = 1 - saturationAmount;
+  const inverse = 1 - remaining;
 
   return [
-    inverse * red + saturationAmount, inverse * green, inverse * blue, 0, 0,
-    inverse * red, inverse * green + saturationAmount, inverse * blue, 0, 0,
-    inverse * red, inverse * green, inverse * blue + saturationAmount, 0, 0,
+    inverse * red + remaining, inverse * green, inverse * blue, 0, 0,
+    inverse * red, inverse * green + remaining, inverse * blue, 0, 0,
+    inverse * red, inverse * green, inverse * blue + remaining, 0, 0,
     0, 0, 0, 1, 0,
   ];
 }
 
 export function buildColorMatrix(settings: EditorSettings): Matrix {
   let matrix = [...IDENTITY];
+  matrix = multiply(exposure(settings.exposure), matrix);
   matrix = multiply(brightness(settings.brightness), matrix);
-  matrix = multiply(contrast(settings.contrast), matrix);
-  matrix = multiply(saturation(settings.saturation), matrix);
-  matrix = multiply(warmth(settings.warmth), matrix);
+  matrix = multiply(
+    tone(settings.highlights, settings.shadows, settings.whites, settings.blacks),
+    matrix,
+  );
+  matrix = multiply(
+    contrast(settings.contrast, settings.clarity, settings.sharpness),
+    matrix,
+  );
+  matrix = multiply(saturation(settings.saturation, settings.vibrance), matrix);
+  matrix = multiply(warmthAndTint(settings.warmth, settings.tint), matrix);
   matrix = multiply(fade(settings.fade), matrix);
   matrix = multiply(grayscale(settings.grayscale), matrix);
   return matrix;
