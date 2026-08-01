@@ -2,16 +2,33 @@
 
 Editor de fotografías moderno construido para la web.
 
+## Abrir la aplicación en internet
+
+No necesitas una computadora ni ejecutar comandos.
+
+[Publicar EditMyPic en Vercel](https://vercel.com/new/import?s=https%3A%2F%2Fgithub.com%2Fvaldy247%2FEditMyPic)
+
+Desde iPhone:
+
+1. Abre el enlace anterior.
+2. Inicia sesión con GitHub.
+3. Selecciona `EditMyPic` y toca **Import**.
+4. Conserva la configuración automática de Next.js y toca **Deploy**.
+5. Vercel instalará las dependencias, comprobará el proyecto y mostrará la dirección pública de la aplicación.
+
+Después del primer despliegue, cada cambio fusionado en la rama `main` se publicará automáticamente.
+
 ## Primera etapa
 
-- Carga local de imágenes
+- Carga local de imágenes desde Fotos o Archivos
 - Ajustes de brillo, contraste, saturación y escala de grises
 - Rotación y volteo
 - Historial de cambios
 - Exportación en PNG y JPEG
-- Interfaz adaptable para escritorio
+- Interfaz adaptable para iPhone, tablet y escritorio
+- Procesamiento local: las fotografías no se suben a nuestro servidor
 
-## Desarrollo
+## Desarrollo opcional
 
 ```bash
 npm install
