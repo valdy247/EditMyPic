@@ -12,6 +12,12 @@ import { Alert, Vibration } from "react-native";
 
 import type { ViewportTransform } from "@/components/editor-gesture-surface";
 import {
+  createForegroundMask,
+  isForegroundRemovalSupported,
+} from "@/modules/editmypic-vision";
+import {
+  BACKGROUND_ADJUSTMENTS,
+  BACKGROUND_BLUR_ADJUSTMENT,
   COLOR_ADJUSTMENTS,
   EFFECT_ADJUSTMENTS,
   LIGHT_ADJUSTMENTS,
@@ -27,7 +33,9 @@ import { FILTER_PRESETS } from "@/src/editor/presets";
 import {
   DEFAULT_SETTINGS,
   LOOK_KEYS,
+  type BackgroundMode,
   type EditorSettings,
+  type EraseStroke,
   type FilterId,
   type ImageAsset,
   type SavedLook,
@@ -35,6 +43,7 @@ import {
 
 const PROJECT_FILE = new File(Paths.document, "editmypic-project.json");
 const LOOK_FILE = new File(Paths.document, "editmypic-look.json");
+const AI_MAX_EDGE = 1536;
 
 type HistoryEntry = {
   settings: EditorSettings;
@@ -44,6 +53,15 @@ type HistoryEntry = {
 type PersistedProject = {
   asset: ImageAsset;
   settings: EditorSettings;
+};
+
+type ProcessingAction = "background" | "erase" | null;
+
+type EraseApiResponse = {
+  imageBase64?: string;
+  width?: number;
+  height?: number;
+  error?: string;
 };
 
 function cloneSettings(settings: EditorSettings): EditorSettings {
@@ -84,8 +102,28 @@ function originalComparison(settings: EditorSettings): EditorSettings {
   };
 }
 
+function getEraseEndpoint() {
+  const configured = process.env.EXPO_PUBLIC_EDIT_API_URL?.trim();
+  if (!configured) return null;
+  const clean = configured.replace(/\/$/, "");
+  return clean.endsWith("/api/v1/erase")
+    ? clean
+    : `${clean}/api/v1/erase`;
+}
+
+async function deleteOwnedFile(uri: string | null | undefined) {
+  if (!uri || !uri.includes("editmypic-")) return;
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch {
+    // Cleanup must never interrupt editing.
+  }
+}
+
 export function useEditorController() {
   const exportCanvasRef = useCanvasRef();
+  const aiCanvasRef = useCanvasRef();
+  const eraseMaskCanvasRef = useCanvasRef();
   const initialSettings = cloneSettings(DEFAULT_SETTINGS);
   const historyRef = useRef<HistoryEntry[]>([
     { settings: initialSettings, label: "Inicio" },
@@ -96,6 +134,7 @@ export function useEditorController() {
     Partial<Record<NumericSettingKey, boolean>>
   >({});
   const projectReadyRef = useRef(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [asset, setAsset] = useState<ImageAsset | null>(null);
   const [settings, setSettings] = useState<EditorSettings>(initialSettings);
@@ -109,9 +148,14 @@ export function useEditorController() {
   const [exportingAction, setExportingAction] = useState<
     "save" | "share" | null
   >(null);
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("jpeg");
+  const [processingAction, setProcessingAction] =
+    useState<ProcessingAction>(null);
+  const [exportFormat, setExportFormatState] =
+    useState<ExportFormat>("jpeg");
   const [exportQuality, setExportQuality] = useState(90);
   const [exportEdge, setExportEdge] = useState<ExportEdge>(4096);
+  const [eraseStrokes, setEraseStrokes] = useState<EraseStroke[]>([]);
+  const [eraseBrushSize, setEraseBrushSize] = useState(0.085);
 
   const canUndo = historyIndexRef.current > 0;
   const canRedo = historyIndexRef.current < historyRef.current.length - 1;
@@ -127,6 +171,13 @@ export function useEditorController() {
         : { width: 1, height: 1 },
     [asset, exportEdge, settings],
   );
+  const aiSize = useMemo(
+    () =>
+      asset
+        ? getExportSize(asset, settings, AI_MAX_EDGE)
+        : { width: 1, height: 1 },
+    [asset, settings],
+  );
   const estimatedBytes = useMemo(() => {
     const pixels = exportSize.width * exportSize.height;
     return exportFormat === "png"
@@ -135,9 +186,17 @@ export function useEditorController() {
   }, [exportFormat, exportQuality, exportSize.height, exportSize.width]);
 
   const showToast = useCallback((message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(message);
-    setTimeout(() => setToast(null), 2600);
+    toastTimerRef.current = setTimeout(() => setToast(null), 2800);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    [],
+  );
 
   const applySettings = useCallback((next: EditorSettings) => {
     const cloned = cloneSettings(next);
@@ -227,10 +286,13 @@ export function useEditorController() {
   }, [asset, settings]);
 
   const persistSelectedImage = useCallback(
-    async (selected: ImagePicker.ImagePickerAsset) => {
+    async (
+      selected: ImagePicker.ImagePickerAsset,
+      prefix = "editmypic-source",
+    ) => {
       const extension = getExtension(selected.uri);
       const targetUri = FileSystem.documentDirectory
-        ? `${FileSystem.documentDirectory}editmypic-source-${Date.now()}.${extension}`
+        ? `${FileSystem.documentDirectory}${prefix}-${Date.now()}.${extension}`
         : selected.uri;
 
       if (targetUri !== selected.uri) {
@@ -257,22 +319,16 @@ export function useEditorController() {
         fileName: getFileName(selected.fileName),
       };
 
-      if (
-        asset?.uri &&
-        asset.uri !== uri &&
-        asset.uri.includes("editmypic-source-")
-      ) {
-        try {
-          await FileSystem.deleteAsync(asset.uri, { idempotent: true });
-        } catch {
-          // Cleanup should never block opening a new photo.
-        }
-      }
+      await deleteOwnedFile(asset?.uri);
+      await deleteOwnedFile(settingsRef.current.foregroundMaskUri);
+      await deleteOwnedFile(settingsRef.current.backgroundImageUri);
 
       setAsset(nextAsset);
+      setEraseStrokes([]);
       resetHistory();
       setActiveTab("looks");
       setPanelExpanded(false);
+      setExportFormatState("jpeg");
       showToast("Foto lista. Pellizca para acercar");
     },
     [asset?.uri, persistSelectedImage, resetHistory, showToast],
@@ -442,6 +498,261 @@ export function useEditorController() {
     );
   }, [commit]);
 
+  const removeBackground = useCallback(async () => {
+    if (!asset || processingAction) return;
+    if (!isForegroundRemovalSupported()) {
+      Alert.alert(
+        "Necesita la build nueva",
+        "Quitar fondo usa Apple Vision. Crea un Launch nuevo para activarlo.",
+      );
+      return;
+    }
+
+    setProcessingAction("background");
+    try {
+      const result = await createForegroundMask(asset.uri);
+      const maskFile = new File(
+        Paths.document,
+        `editmypic-mask-${Date.now()}.png`,
+      );
+      await FileSystem.copyAsync({
+        from: result.maskUri,
+        to: maskFile.uri,
+      });
+      await deleteOwnedFile(settingsRef.current.foregroundMaskUri);
+
+      commit(
+        {
+          ...settingsRef.current,
+          foregroundMaskUri: maskFile.uri,
+          backgroundMode: "transparent",
+        },
+        "Quitar fondo",
+      );
+      setExportFormatState("png");
+      Vibration.vibrate(12);
+      showToast(
+        result.mode === "subjects"
+          ? "Fondo eliminado en tu iPhone ✓"
+          : "Persona separada del fondo ✓",
+      );
+    } catch (error) {
+      Alert.alert(
+        "No se pudo quitar el fondo",
+        error instanceof Error
+          ? error.message
+          : "Prueba con una foto donde el sujeto se vea completo.",
+      );
+    } finally {
+      setProcessingAction(null);
+    }
+  }, [asset, commit, processingAction, showToast]);
+
+  const setBackgroundMode = useCallback(
+    (backgroundMode: BackgroundMode) => {
+      if (!settingsRef.current.foregroundMaskUri && backgroundMode !== "original") {
+        showToast("Primero toca Quitar fondo");
+        return;
+      }
+      commit(
+        { ...settingsRef.current, backgroundMode },
+        backgroundMode === "original" ? "Fondo original" : "Cambiar fondo",
+      );
+      if (backgroundMode === "transparent") setExportFormatState("png");
+    },
+    [commit, showToast],
+  );
+
+  const setBackgroundColors = useCallback(
+    (primary: string, secondary = primary, gradient = false) => {
+      if (!settingsRef.current.foregroundMaskUri) {
+        showToast("Primero toca Quitar fondo");
+        return;
+      }
+      commit(
+        {
+          ...settingsRef.current,
+          backgroundMode: gradient ? "gradient" : "solid",
+          backgroundColor: primary,
+          backgroundColorSecondary: secondary,
+        },
+        gradient ? "Fondo degradado" : "Fondo de color",
+      );
+    },
+    [commit, showToast],
+  );
+
+  const pickBackgroundPhoto = useCallback(async () => {
+    if (!asset) return;
+    if (!settingsRef.current.foregroundMaskUri) {
+      showToast("Primero toca Quitar fondo");
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Abre tu fototeca",
+        "Activa el acceso a Fotos para elegir un fondo.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    const previous = settingsRef.current.backgroundImageUri;
+    const backgroundImageUri = await persistSelectedImage(
+      result.assets[0],
+      "editmypic-background",
+    );
+    await deleteOwnedFile(previous);
+    commit(
+      {
+        ...settingsRef.current,
+        backgroundMode: "photo",
+        backgroundImageUri,
+      },
+      "Fondo con foto",
+    );
+  }, [asset, commit, persistSelectedImage, showToast]);
+
+  const resetBackground = useCallback(async () => {
+    const current = settingsRef.current;
+    await deleteOwnedFile(current.foregroundMaskUri);
+    await deleteOwnedFile(current.backgroundImageUri);
+    commit(
+      {
+        ...current,
+        foregroundMaskUri: null,
+        backgroundMode: DEFAULT_SETTINGS.backgroundMode,
+        backgroundColor: DEFAULT_SETTINGS.backgroundColor,
+        backgroundColorSecondary: DEFAULT_SETTINGS.backgroundColorSecondary,
+        backgroundImageUri: null,
+        backgroundBlur: DEFAULT_SETTINGS.backgroundBlur,
+        maskFeather: DEFAULT_SETTINGS.maskFeather,
+        subjectShadow: DEFAULT_SETTINGS.subjectShadow,
+      },
+      "Reiniciar fondo",
+    );
+    setExportFormatState("jpeg");
+  }, [commit]);
+
+  const addEraseStroke = useCallback((stroke: EraseStroke) => {
+    setEraseStrokes((current) => [...current, stroke].slice(-80));
+  }, []);
+
+  const undoEraseStroke = useCallback(() => {
+    setEraseStrokes((current) => current.slice(0, -1));
+  }, []);
+
+  const clearEraseSelection = useCallback(() => {
+    setEraseStrokes([]);
+  }, []);
+
+  const applyObjectErase = useCallback(async () => {
+    if (!asset || processingAction || eraseStrokes.length === 0) return;
+    const endpoint = getEraseEndpoint();
+    if (!endpoint) {
+      Alert.alert(
+        "Falta conectar la IA",
+        "Configura EXPO_PUBLIC_EDIT_API_URL en Expo para activar Borrar objetos.",
+      );
+      return;
+    }
+
+    setProcessingAction("erase");
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      const imageSnapshot =
+        await aiCanvasRef.current?.makeImageSnapshotAsync();
+      const maskSnapshot =
+        await eraseMaskCanvasRef.current?.makeImageSnapshotAsync();
+      if (!imageSnapshot || !maskSnapshot) {
+        throw new Error("No pudimos preparar la selección.");
+      }
+
+      const imageFile = new File(
+        Paths.cache,
+        `editmypic-ai-source-${Date.now()}.jpg`,
+      );
+      const maskFile = new File(
+        Paths.cache,
+        `editmypic-ai-mask-${Date.now()}.png`,
+      );
+      imageFile.write(imageSnapshot.encodeToBytes(ImageFormat.JPEG, 92));
+      maskFile.write(maskSnapshot.encodeToBytes(ImageFormat.PNG, 100));
+
+      const [imageBase64, maskBase64] = await Promise.all([
+        FileSystem.readAsStringAsync(imageFile.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        }),
+        FileSystem.readAsStringAsync(maskFile.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        }),
+      ]);
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64,
+          maskBase64,
+          prompt:
+            "Remove the selected people or objects and reconstruct the area naturally. Preserve everything outside the transparent mask exactly, including lighting, perspective, texture, and image composition. Do not add new subjects or text.",
+        }),
+      });
+      const payload = (await response.json()) as EraseApiResponse;
+      if (!response.ok || !payload.imageBase64) {
+        throw new Error(payload.error || "La IA no pudo completar el borrado.");
+      }
+
+      const output = new File(
+        Paths.document,
+        `editmypic-clean-${Date.now()}.png`,
+      );
+      await FileSystem.writeAsStringAsync(output.uri, payload.imageBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const oldAsset = asset;
+      const nextAsset: ImageAsset = {
+        uri: output.uri,
+        width: payload.width ?? aiSize.width,
+        height: payload.height ?? aiSize.height,
+        fileName: `${asset.fileName}-clean`,
+      };
+      setAsset(nextAsset);
+      setEraseStrokes([]);
+      resetHistory(cloneSettings(DEFAULT_SETTINGS), "Objeto borrado");
+      setActiveTab("looks");
+      setPanelExpanded(false);
+      setExportFormatState("png");
+      await deleteOwnedFile(oldAsset.uri);
+      Vibration.vibrate([0, 12, 50, 12]);
+      showToast("Selección borrada y reconstruida ✓");
+    } catch (error) {
+      Alert.alert(
+        "No se pudo borrar",
+        error instanceof Error ? error.message : "Prueba con una zona menor.",
+      );
+    } finally {
+      setProcessingAction(null);
+    }
+  }, [
+    aiSize.height,
+    aiSize.width,
+    asset,
+    eraseStrokes.length,
+    processingAction,
+    resetHistory,
+    showToast,
+  ]);
+
   const resetCurrentSection = useCallback(() => {
     const current = settingsRef.current;
     let next = cloneSettings(current);
@@ -478,6 +789,12 @@ export function useEditorController() {
         offsetY: DEFAULT_SETTINGS.offsetY,
       };
       label = "Reiniciar recorte";
+    } else if (activeTab === "background") {
+      void resetBackground();
+      return;
+    } else if (activeTab === "erase") {
+      clearEraseSelection();
+      return;
     } else if (activeTab === "effects") {
       for (const adjustment of EFFECT_ADJUSTMENTS) {
         (next as unknown as Record<string, unknown>)[adjustment.key] =
@@ -487,7 +804,12 @@ export function useEditorController() {
     }
 
     commit(next, label);
-  }, [activeTab, commit]);
+  }, [
+    activeTab,
+    clearEraseSelection,
+    commit,
+    resetBackground,
+  ]);
 
   const openTab = useCallback(
     (tab: PanelTab, usesBottomPanel: boolean, forceOpen = false) => {
@@ -523,7 +845,7 @@ export function useEditorController() {
       snapshot.encodeToBytes(format, isJpeg ? exportQuality : 100),
     );
     return output;
-  }, [asset, exportCanvasRef, exportFormat, exportQuality]);
+  }, [asset, exportFormat, exportQuality]);
 
   const saveToPhotos = useCallback(async () => {
     if (!asset || exportingAction) return;
@@ -570,13 +892,30 @@ export function useEditorController() {
     }
   }, [asset, exportFormat, exportingAction, renderExportFile]);
 
+  const changeExportFormat = useCallback(
+    (format: ExportFormat) => {
+      if (
+        format === "jpeg" &&
+        settingsRef.current.backgroundMode === "transparent"
+      ) {
+        showToast("La transparencia necesita PNG");
+        return;
+      }
+      setExportFormatState(format);
+    },
+    [showToast],
+  );
+
   return {
     asset,
     settings,
     settingsRef,
     displaySettings,
     exportCanvasRef,
+    aiCanvasRef,
+    eraseMaskCanvasRef,
     exportSize,
+    aiSize,
     estimatedBytes,
     historyVersion,
     lastHistoryLabel,
@@ -589,15 +928,19 @@ export function useEditorController() {
     toast,
     savedLook,
     exportingAction,
+    processingAction,
     exportFormat,
     exportQuality,
     exportEdge,
+    eraseStrokes,
+    eraseBrushSize,
     setAdjustGroup,
     setPanelExpanded,
     setShowOriginal,
-    setExportFormat,
+    setExportFormat: changeExportFormat,
     setExportQuality,
     setExportEdge,
+    setEraseBrushSize,
     applySettings,
     commit,
     updateAndCommit,
@@ -614,10 +957,21 @@ export function useEditorController() {
     updateViewport,
     finishViewport,
     resetFraming,
+    removeBackground,
+    setBackgroundMode,
+    setBackgroundColors,
+    pickBackgroundPhoto,
+    resetBackground,
+    addEraseStroke,
+    undoEraseStroke,
+    clearEraseSelection,
+    applyObjectErase,
     resetCurrentSection,
     openTab,
     saveToPhotos,
     shareImage,
+    backgroundAdjustments: BACKGROUND_ADJUSTMENTS,
+    backgroundBlurAdjustment: BACKGROUND_BLUR_ADJUSTMENT,
   };
 }
 
