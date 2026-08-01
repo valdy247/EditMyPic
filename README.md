@@ -1,42 +1,34 @@
 # EditMyPic
 
-Editor de fotografías moderno construido para la web.
+Editor de fotografías nativo para iPhone, iPad, Android y web, construido con Expo, React Native y Skia.
 
-## Abrir la aplicación en internet
+## Objetivo
 
-No necesitas una computadora ni ejecutar comandos.
+Publicar EditMyPic en la App Store como una aplicación completa, no como una página web envuelta. La interfaz y el procesamiento principal se ejecutan de forma nativa y local en el dispositivo.
 
-[Publicar EditMyPic en Vercel](https://vercel.com/new/import?s=https%3A%2F%2Fgithub.com%2Fvaldy247%2FEditMyPic)
+## Primera base nativa
 
-Desde iPhone:
+- Abrir imágenes desde Fotos
+- Tomar fotografías con la cámara
+- Brillo, contraste, saturación y blanco y negro
+- Rotación y volteo horizontal/vertical
+- Historial con deshacer y rehacer
+- Renderizado acelerado con Skia
+- Exportación PNG de hasta 4096 px mediante el menú Compartir de iOS
+- Interfaz adaptable a iPhone y iPad
+- Procesamiento local de las imágenes
 
-1. Abre el enlace anterior.
-2. Inicia sesión con GitHub.
-3. Selecciona `EditMyPic` y toca **Import**.
-4. Conserva la configuración automática de Next.js y toca **Deploy**.
-5. Vercel instalará las dependencias, comprobará el proyecto y mostrará la dirección pública de la aplicación.
+## Publicación sin Mac
 
-Después del primer despliegue, cada cambio fusionado en la rama `main` se publicará automáticamente.
+La compilación y firma de iOS se harán en la nube con Expo Application Services (EAS). El propietario solo necesitará autorizar sus cuentas de Expo y Apple Developer desde el navegador. No será necesario instalar Xcode ni ejecutar compilaciones en una computadora personal.
 
-## Primera etapa
+## Distribución prevista
 
-- Carga local de imágenes desde Fotos o Archivos
-- Ajustes de brillo, contraste, saturación y escala de grises
-- Rotación y volteo
-- Historial de cambios
-- Exportación en PNG y JPEG
-- Interfaz adaptable para iPhone, tablet y escritorio
-- Procesamiento local: las fotografías no se suben a nuestro servidor
+1. Builds internas mediante EAS.
+2. Pruebas en iPhone con TestFlight.
+3. Capturas, privacidad y ficha de App Store Connect.
+4. Envío a revisión de Apple.
 
-## Desarrollo opcional
+## Identificador provisional
 
-```bash
-npm install
-npm run dev
-```
-
-Después abre `http://localhost:3000`.
-
-## Visión
-
-Convertir EditMyPic en una plataforma profesional de edición visual con capas, máscaras, herramientas de selección y funciones de inteligencia artificial.
+`com.valdy247.editmypic`
