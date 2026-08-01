@@ -110,6 +110,15 @@ export function EditorGestureSurface({
     const start = startRef.current;
     const layout = layoutRef.current;
 
+    if (touches.length >= 2 && start.distance <= 0) {
+      start.value = { ...valueRef.current };
+      start.distance = getDistance(touches);
+      start.midpoint = getMidpoint(touches);
+      start.touchCount = 2;
+      start.moved = true;
+      return;
+    }
+
     if (touches.length >= 2 && start.distance > 0) {
       const distance = getDistance(touches);
       const midpoint = getMidpoint(touches);
