@@ -1,4 +1,4 @@
-name: Launch EditMyPic to TestFlight
+name: Build and Submit EditMyPic
 
 on:
   push:
@@ -13,8 +13,9 @@ jobs:
       profile: production
 
   submit_ios:
-    name: Send to TestFlight
+    name: Upload to App Store Connect
     needs: [build_ios]
-    type: testflight
+    type: submit
     params:
       build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
