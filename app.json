@@ -2,7 +2,7 @@
   "expo": {
     "name": "EditMyPic",
     "slug": "editmypic",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "orientation": "default",
     "scheme": "editmypic",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.valdy247.editmypic",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Elige una foto y dale tu estilo sin salir de EditMyPic.",
         "NSCameraUsageDescription": "Captura una foto y empieza a editarla al instante."
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.valdy247.editmypic",
-      "versionCode": 6
+      "versionCode": 7
     },
     "plugins": [
       "expo-router",
