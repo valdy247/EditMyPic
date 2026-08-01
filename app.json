@@ -2,7 +2,7 @@
   "expo": {
     "name": "EditMyPic",
     "slug": "editmypic",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "default",
     "scheme": "editmypic",
     "userInterfaceStyle": "dark",
@@ -10,13 +10,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.valdy247.editmypic",
+      "buildNumber": "3",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "EditMyPic necesita acceso a tus fotos para abrir imágenes que quieras editar.",
         "NSCameraUsageDescription": "EditMyPic necesita usar la cámara para tomar una fotografía y editarla."
       }
     },
     "android": {
-      "package": "com.valdy247.editmypic"
+      "package": "com.valdy247.editmypic",
+      "versionCode": 3
     },
     "plugins": [
       "expo-router",
