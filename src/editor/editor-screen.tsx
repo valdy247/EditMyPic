@@ -10,6 +10,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EditorCanvas } from "@/components/editor-canvas";
 import {
+  EraseMaskCanvas,
+  EraseOverlay,
+} from "@/components/erase-overlay";
+import {
   EditorGestureSurface,
   type ViewportTransform,
 } from "@/components/editor-gesture-surface";
@@ -40,6 +44,8 @@ export default function EditorScreen() {
     390,
     Math.max(300, Math.round(windowWidth * 0.44)),
   );
+  const eraseMode =
+    editor.activeTab === "erase" && effectivePanelExpanded && !!editor.asset;
 
   const cropFrame = useMemo(() => {
     if (!editor.asset) return null;
@@ -161,7 +167,7 @@ export default function EditorScreen() {
               {editor.asset ? (
                 <>
                   <EditorGestureSurface
-                    disabled={false}
+                    disabled={eraseMode || editor.processingAction !== null}
                     zoom={editor.settings.zoom}
                     offsetX={editor.settings.offsetX}
                     offsetY={editor.settings.offsetY}
@@ -208,24 +214,43 @@ export default function EditorScreen() {
                     </View>
                   ) : null}
 
-                  <Pressable
-                    onPressIn={() => editor.setShowOriginal(true)}
-                    onPressOut={() => editor.setShowOriginal(false)}
-                    style={[
-                      styles.compareBadge,
-                      editor.showOriginal && styles.compareBadgeActive,
-                    ]}
-                  >
-                    <Text style={styles.compareText}>
-                      {editor.showOriginal
-                        ? "ORIGINAL"
-                        : "MANTÉN PARA COMPARAR"}
-                    </Text>
-                  </Pressable>
+                  {eraseMode && cropFrame ? (
+                    <EraseOverlay
+                      frame={cropFrame}
+                      strokes={editor.eraseStrokes}
+                      brushSize={editor.eraseBrushSize}
+                      disabled={editor.processingAction !== null}
+                      onStrokeComplete={editor.addEraseStroke}
+                    />
+                  ) : null}
 
-                  {editor.settings.zoom > 1.01 ||
-                  Math.abs(editor.settings.offsetX) > 0.01 ||
-                  Math.abs(editor.settings.offsetY) > 0.01 ? (
+                  {!eraseMode ? (
+                    <Pressable
+                      onPressIn={() => editor.setShowOriginal(true)}
+                      onPressOut={() => editor.setShowOriginal(false)}
+                      style={[
+                        styles.compareBadge,
+                        editor.showOriginal && styles.compareBadgeActive,
+                      ]}
+                    >
+                      <Text style={styles.compareText}>
+                        {editor.showOriginal
+                          ? "ORIGINAL"
+                          : "MANTÉN PARA COMPARAR"}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <View pointerEvents="none" style={styles.eraseModeBadge}>
+                      <Text style={styles.eraseModeBadgeText}>
+                        PINTA SOBRE LO QUE QUIERES BORRAR
+                      </Text>
+                    </View>
+                  )}
+
+                  {!eraseMode &&
+                  (editor.settings.zoom > 1.01 ||
+                    Math.abs(editor.settings.offsetX) > 0.01 ||
+                    Math.abs(editor.settings.offsetY) > 0.01) ? (
                     <Pressable
                       accessibilityLabel="Centrar imagen"
                       onPress={editor.resetFraming}
@@ -298,15 +323,34 @@ export default function EditorScreen() {
         ) : null}
 
         {editor.asset ? (
-          <View pointerEvents="none" style={styles.offscreenCanvas}>
-            <EditorCanvas
-              ref={editor.exportCanvasRef}
-              asset={editor.asset}
-              settings={editor.settings}
-              width={editor.exportSize.width}
-              height={editor.exportSize.height}
-            />
-          </View>
+          <>
+            <View pointerEvents="none" style={styles.offscreenCanvas}>
+              <EditorCanvas
+                ref={editor.exportCanvasRef}
+                asset={editor.asset}
+                settings={editor.settings}
+                width={editor.exportSize.width}
+                height={editor.exportSize.height}
+              />
+            </View>
+            <View pointerEvents="none" style={styles.offscreenCanvas}>
+              <EditorCanvas
+                ref={editor.aiCanvasRef}
+                asset={editor.asset}
+                settings={editor.settings}
+                width={editor.aiSize.width}
+                height={editor.aiSize.height}
+              />
+            </View>
+            <View pointerEvents="none" style={styles.offscreenCanvas}>
+              <EraseMaskCanvas
+                ref={editor.eraseMaskCanvasRef}
+                strokes={editor.eraseStrokes}
+                width={editor.aiSize.width}
+                height={editor.aiSize.height}
+              />
+            </View>
+          </>
         ) : null}
       </View>
     </SafeAreaView>
