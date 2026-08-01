@@ -4,6 +4,7 @@ on:
   push:
     branches: ['main']
 
+# Redeploy after configuring OPENAI_API_KEY in the production environment.
 jobs:
   deploy:
     type: deploy
