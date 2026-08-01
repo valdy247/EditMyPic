@@ -2,7 +2,7 @@
   "expo": {
     "name": "EditMyPic",
     "slug": "editmypic",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "orientation": "default",
     "scheme": "editmypic",
     "userInterfaceStyle": "dark",
@@ -10,23 +10,23 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.valdy247.editmypic",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "EditMyPic necesita acceso a tus fotos para abrir imágenes que quieras editar.",
-        "NSCameraUsageDescription": "EditMyPic necesita usar la cámara para tomar una fotografía y editarla."
+        "NSPhotoLibraryUsageDescription": "Elige una foto y dale tu estilo sin salir de EditMyPic.",
+        "NSCameraUsageDescription": "Captura una foto y empieza a editarla al instante."
       }
     },
     "android": {
       "package": "com.valdy247.editmypic",
-      "versionCode": 4
+      "versionCode": 5
     },
     "plugins": [
       "expo-router",
       [
         "expo-image-picker",
         {
-          "photosPermission": "EditMyPic necesita acceso a tus fotos para abrir imágenes que quieras editar.",
-          "cameraPermission": "EditMyPic necesita usar la cámara para tomar una fotografía y editarla."
+          "photosPermission": "Elige una foto y dale tu estilo sin salir de EditMyPic.",
+          "cameraPermission": "Captura una foto y empieza a editarla al instante."
         }
       ]
     ],
