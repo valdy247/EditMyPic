@@ -1,11 +1,14 @@
 import { forwardRef, useMemo } from "react";
 import {
+  Blur,
   Canvas,
   ColorMatrix,
   CubicSampling,
   FractalNoise,
   Group,
   Image,
+  LinearGradient,
+  Mask,
   RadialGradient,
   Rect,
   rect,
@@ -32,11 +35,53 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
+type Frame = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function TransparencyGrid({ frame }: { frame: Frame }) {
+  const size = Math.max(12, Math.min(26, Math.min(frame.width, frame.height) / 13));
+  const columns = Math.ceil(frame.width / size);
+  const rows = Math.ceil(frame.height / size);
+
+  return (
+    <Group clip={rect(frame.x, frame.y, frame.width, frame.height)}>
+      <Rect
+        x={frame.x}
+        y={frame.y}
+        width={frame.width}
+        height={frame.height}
+        color="#e7e8ec"
+      />
+      {Array.from({ length: columns * rows }, (_, index) => {
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        if ((column + row) % 2 === 0) return null;
+        return (
+          <Rect
+            key={`${column}-${row}`}
+            x={frame.x + column * size}
+            y={frame.y + row * size}
+            width={size}
+            height={size}
+            color="#cfd1d7"
+          />
+        );
+      })}
+    </Group>
+  );
+}
+
 export const EditorCanvas = forwardRef<SkiaView, Props>(function EditorCanvas(
   { asset, settings, width, height, previewPadding = 0, style },
   ref,
 ) {
   const image = useImage(asset.uri);
+  const foregroundMask = useImage(settings.foregroundMaskUri ?? null);
+  const backgroundImage = useImage(settings.backgroundImageUri ?? null);
   const matrix = useMemo(() => buildColorMatrix(settings), [settings]);
   const overlay = useMemo(() => getOverlayEffects(settings), [settings]);
 
@@ -94,40 +139,192 @@ export const EditorCanvas = forwardRef<SkiaView, Props>(function EditorCanvas(
     geometry.frame.width,
     geometry.frame.height,
   );
+  const imageX = geometry.centerX - geometry.drawWidth / 2;
+  const imageY = geometry.centerY - geometry.drawHeight / 2;
+  const sourceTransform = [
+    { rotate: geometry.radians },
+    { skewX: geometry.skewX },
+    { skewY: geometry.skewY },
+    { scaleX: settings.flipX ? -1 : 1 },
+    { scaleY: settings.flipY ? -1 : 1 },
+  ];
+  const hasForegroundMask = Boolean(settings.foregroundMaskUri && foregroundMask);
+  const replacesBackground =
+    hasForegroundMask && settings.backgroundMode !== "original";
+  const isPreview = previewPadding > 0;
+
+  const transformedSource = (
+    <Group
+      origin={{ x: geometry.centerX, y: geometry.centerY }}
+      transform={sourceTransform}
+    >
+      <Image
+        image={image}
+        x={imageX}
+        y={imageY}
+        width={geometry.drawWidth}
+        height={geometry.drawHeight}
+        fit="fill"
+        sampling={CubicSampling}
+      >
+        <ColorMatrix matrix={matrix} />
+      </Image>
+    </Group>
+  );
+
+  const transformedMask = foregroundMask ? (
+    <Group
+      origin={{ x: geometry.centerX, y: geometry.centerY }}
+      transform={sourceTransform}
+    >
+      <Image
+        image={foregroundMask}
+        x={imageX}
+        y={imageY}
+        width={geometry.drawWidth}
+        height={geometry.drawHeight}
+        fit="fill"
+        sampling={CubicSampling}
+      >
+        {settings.maskFeather > 0 ? (
+          <Blur blur={settings.maskFeather * 8} mode="clamp" />
+        ) : null}
+      </Image>
+    </Group>
+  ) : null;
+
+  const replacementBackground = (() => {
+    switch (settings.backgroundMode) {
+      case "transparent":
+        return isPreview ? <TransparencyGrid frame={geometry.frame} /> : null;
+      case "solid":
+        return (
+          <Rect
+            x={geometry.frame.x}
+            y={geometry.frame.y}
+            width={geometry.frame.width}
+            height={geometry.frame.height}
+            color={settings.backgroundColor}
+          />
+        );
+      case "gradient":
+        return (
+          <Rect
+            x={geometry.frame.x}
+            y={geometry.frame.y}
+            width={geometry.frame.width}
+            height={geometry.frame.height}
+          >
+            <LinearGradient
+              start={vec(geometry.frame.x, geometry.frame.y)}
+              end={vec(
+                geometry.frame.x + geometry.frame.width,
+                geometry.frame.y + geometry.frame.height,
+              )}
+              colors={[
+                settings.backgroundColor,
+                settings.backgroundColorSecondary,
+              ]}
+            />
+          </Rect>
+        );
+      case "photo":
+        return backgroundImage ? (
+          <Image
+            image={backgroundImage}
+            x={geometry.frame.x}
+            y={geometry.frame.y}
+            width={geometry.frame.width}
+            height={geometry.frame.height}
+            fit="cover"
+            sampling={CubicSampling}
+          />
+        ) : (
+          <Rect
+            x={geometry.frame.x}
+            y={geometry.frame.y}
+            width={geometry.frame.width}
+            height={geometry.frame.height}
+            color={settings.backgroundColor}
+          />
+        );
+      case "blur":
+        return (
+          <Group
+            origin={{ x: geometry.centerX, y: geometry.centerY }}
+            transform={sourceTransform}
+          >
+            <Image
+              image={image}
+              x={imageX}
+              y={imageY}
+              width={geometry.drawWidth}
+              height={geometry.drawHeight}
+              fit="fill"
+              sampling={CubicSampling}
+            >
+              <Blur blur={2 + settings.backgroundBlur * 22} mode="clamp">
+                <ColorMatrix matrix={matrix} />
+              </Blur>
+            </Image>
+          </Group>
+        );
+      case "original":
+      default:
+        return null;
+    }
+  })();
 
   return (
     <Canvas ref={ref} style={[{ width, height }, style]}>
-      <Rect
-        x={geometry.frame.x}
-        y={geometry.frame.y}
-        width={geometry.frame.width}
-        height={geometry.frame.height}
-        color="#090a0d"
-      />
-
       <Group clip={clip}>
-        <Group
-          origin={{ x: geometry.centerX, y: geometry.centerY }}
-          transform={[
-            { rotate: geometry.radians },
-            { skewX: geometry.skewX },
-            { skewY: geometry.skewY },
-            { scaleX: settings.flipX ? -1 : 1 },
-            { scaleY: settings.flipY ? -1 : 1 },
-          ]}
-        >
-          <Image
-            image={image}
-            x={geometry.centerX - geometry.drawWidth / 2}
-            y={geometry.centerY - geometry.drawHeight / 2}
-            width={geometry.drawWidth}
-            height={geometry.drawHeight}
-            fit="fill"
-            sampling={CubicSampling}
-          >
-            <ColorMatrix matrix={matrix} />
-          </Image>
-        </Group>
+        {replacesBackground ? (
+          replacementBackground
+        ) : (
+          <Rect
+            x={geometry.frame.x}
+            y={geometry.frame.y}
+            width={geometry.frame.width}
+            height={geometry.frame.height}
+            color="#090a0d"
+          />
+        )}
+
+        {replacesBackground && transformedMask ? (
+          <>
+            {settings.subjectShadow > 0 ? (
+              <Mask
+                mode="luminance"
+                mask={
+                  <Group
+                    transform={[
+                      { translateX: geometry.frame.width * 0.012 },
+                      { translateY: geometry.frame.height * 0.018 },
+                    ]}
+                  >
+                    {transformedMask}
+                  </Group>
+                }
+              >
+                <Rect
+                  x={geometry.frame.x}
+                  y={geometry.frame.y}
+                  width={geometry.frame.width}
+                  height={geometry.frame.height}
+                  color="rgba(0,0,0,1)"
+                  opacity={settings.subjectShadow * 0.52}
+                >
+                  <Blur blur={3 + settings.subjectShadow * 15} />
+                </Rect>
+              </Mask>
+            ) : null}
+            <Mask mode="luminance" mask={transformedMask}>
+              {transformedSource}
+            </Mask>
+          </>
+        ) : (
+          transformedSource
+        )}
 
         {overlay.vignette > 0 ? (
           <Rect
@@ -175,15 +372,17 @@ export const EditorCanvas = forwardRef<SkiaView, Props>(function EditorCanvas(
         ) : null}
       </Group>
 
-      <Rect
-        x={geometry.frame.x}
-        y={geometry.frame.y}
-        width={geometry.frame.width}
-        height={geometry.frame.height}
-        color="rgba(255,255,255,0.12)"
-        style="stroke"
-        strokeWidth={1}
-      />
+      {isPreview ? (
+        <Rect
+          x={geometry.frame.x}
+          y={geometry.frame.y}
+          width={geometry.frame.width}
+          height={geometry.frame.height}
+          color="rgba(255,255,255,0.12)"
+          style="stroke"
+          strokeWidth={1}
+        />
+      ) : null}
     </Canvas>
   );
 });
