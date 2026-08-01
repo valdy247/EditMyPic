@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PanResponder,
@@ -12,6 +13,7 @@ type Props = {
   minimumValue: number;
   maximumValue: number;
   step?: number;
+  neutralValue?: number;
   disabled?: boolean;
   onValueChange: (value: number) => void;
   onSlidingComplete: (value: number) => void;
@@ -35,6 +37,7 @@ export function EditorSlider({
   minimumValue,
   maximumValue,
   step = 0.01,
+  neutralValue,
   disabled = false,
   onValueChange,
   onSlidingComplete,
@@ -46,6 +49,8 @@ export function EditorSlider({
   const minimumRef = useRef(minimumValue);
   const maximumRef = useRef(maximumValue);
   const stepRef = useRef(step);
+  const neutralRef = useRef(neutralValue);
+  const neutralHapticArmedRef = useRef(true);
   const onValueChangeRef = useRef(onValueChange);
   const onSlidingCompleteRef = useRef(onSlidingComplete);
 
@@ -58,9 +63,18 @@ export function EditorSlider({
     minimumRef.current = minimumValue;
     maximumRef.current = maximumValue;
     stepRef.current = step;
+    neutralRef.current = neutralValue;
     onValueChangeRef.current = onValueChange;
     onSlidingCompleteRef.current = onSlidingComplete;
-  }, [disabled, maximumValue, minimumValue, onSlidingComplete, onValueChange, step]);
+  }, [
+    disabled,
+    maximumValue,
+    minimumValue,
+    neutralValue,
+    onSlidingComplete,
+    onValueChange,
+    step,
+  ]);
 
   const valueFromPosition = useCallback((position: number) => {
     const width = trackWidthRef.current;
@@ -78,14 +92,34 @@ export function EditorSlider({
     return clamp(roundToStep(raw, minimum, currentStep), minimum, maximum);
   }, []);
 
+  const maybeHapticAtNeutral = useCallback((previous: number, next: number) => {
+    const neutral = neutralRef.current;
+    if (neutral === undefined) return;
+
+    const threshold = Math.max(stepRef.current * 0.51, 0.0001);
+    const isAtNeutral = Math.abs(next - neutral) <= threshold;
+    const crossedNeutral =
+      (previous < neutral && next > neutral) ||
+      (previous > neutral && next < neutral);
+
+    if ((isAtNeutral || crossedNeutral) && neutralHapticArmedRef.current) {
+      neutralHapticArmedRef.current = false;
+      void Haptics.selectionAsync();
+    } else if (Math.abs(next - neutral) > threshold * 2.5) {
+      neutralHapticArmedRef.current = true;
+    }
+  }, []);
+
   const updateFromPosition = useCallback(
     (position: number) => {
+      const previous = valueRef.current;
       const next = valueFromPosition(position);
-      if (Math.abs(next - valueRef.current) < Number.EPSILON) return;
+      if (Math.abs(next - previous) < Number.EPSILON) return;
       valueRef.current = next;
+      maybeHapticAtNeutral(previous, next);
       onValueChangeRef.current(next);
     },
-    [valueFromPosition],
+    [maybeHapticAtNeutral, valueFromPosition],
   );
 
   const panResponder = useMemo(
@@ -95,6 +129,7 @@ export function EditorSlider({
         onMoveShouldSetPanResponder: (_, gesture) =>
           !disabledRef.current && Math.abs(gesture.dx) >= Math.abs(gesture.dy),
         onPanResponderGrant: (event) => {
+          neutralHapticArmedRef.current = true;
           updateFromPosition(event.nativeEvent.locationX);
         },
         onPanResponderMove: (event) => {
@@ -125,12 +160,18 @@ export function EditorSlider({
     const effectiveStep = step > 0 ? step : fallbackStep;
     const direction = event.nativeEvent.actionName === "increment" ? 1 : -1;
     const next = clamp(
-      roundToStep(valueRef.current + effectiveStep * direction, minimumValue, effectiveStep),
+      roundToStep(
+        valueRef.current + effectiveStep * direction,
+        minimumValue,
+        effectiveStep,
+      ),
       minimumValue,
       maximumValue,
     );
 
+    const previous = valueRef.current;
     valueRef.current = next;
+    maybeHapticAtNeutral(previous, next);
     onValueChangeRef.current(next);
     onSlidingCompleteRef.current(next);
   };
@@ -139,7 +180,17 @@ export function EditorSlider({
   const ratio = range === 0 ? 0 : (value - minimumValue) / range;
   const normalized = clamp(ratio, 0, 1);
   const thumbPosition = normalized * Math.max(0, trackWidth - THUMB_SIZE);
-  const progressWidth = THUMB_SIZE / 2 + normalized * Math.max(0, trackWidth - THUMB_SIZE);
+  const progressWidth =
+    THUMB_SIZE / 2 + normalized * Math.max(0, trackWidth - THUMB_SIZE);
+
+  const neutralRatio =
+    neutralValue === undefined || range <= 0
+      ? null
+      : clamp((neutralValue - minimumValue) / range, 0, 1);
+  const neutralPosition =
+    neutralRatio === null
+      ? 0
+      : THUMB_SIZE / 2 + neutralRatio * Math.max(0, trackWidth - THUMB_SIZE);
 
   return (
     <View
@@ -153,7 +204,16 @@ export function EditorSlider({
       {...panResponder.panHandlers}
     >
       <View pointerEvents="none" style={styles.track} />
-      <View pointerEvents="none" style={[styles.progress, { width: progressWidth }]} />
+      {neutralRatio !== null ? (
+        <View
+          pointerEvents="none"
+          style={[styles.neutralMarker, { left: neutralPosition - 1 }]}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[styles.progress, { width: progressWidth }]}
+      />
       <View
         pointerEvents="none"
         style={[styles.thumb, { transform: [{ translateX: thumbPosition }] }]}
@@ -178,6 +238,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#2b2f3a",
   },
+  neutralMarker: {
+    position: "absolute",
+    width: 2,
+    height: 11,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.42)",
+  },
   progress: {
     position: "absolute",
     left: 0,
@@ -192,5 +259,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#ded7ff",
     backgroundColor: "#7654f6",
+    shadowColor: "#7654f6",
+    shadowOpacity: 0.36,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
 });
