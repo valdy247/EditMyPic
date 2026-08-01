@@ -19,6 +19,24 @@ export type FilterId =
   | "mono"
   | "vintage";
 
+export type BackgroundMode =
+  | "original"
+  | "transparent"
+  | "solid"
+  | "gradient"
+  | "photo"
+  | "blur";
+
+export type NormalizedPoint = {
+  x: number;
+  y: number;
+};
+
+export type EraseStroke = {
+  points: NormalizedPoint[];
+  size: number;
+};
+
 export type EditorSettings = {
   exposure: number;
   brightness: number;
@@ -50,6 +68,14 @@ export type EditorSettings = {
   offsetY: number;
   filterId: FilterId;
   filterIntensity: number;
+  foregroundMaskUri: string | null;
+  backgroundMode: BackgroundMode;
+  backgroundColor: string;
+  backgroundColorSecondary: string;
+  backgroundImageUri: string | null;
+  backgroundBlur: number;
+  maskFeather: number;
+  subjectShadow: number;
 };
 
 export type ImageAsset = {
@@ -113,6 +139,14 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   offsetY: 0,
   filterId: "none",
   filterIntensity: 0.75,
+  foregroundMaskUri: null,
+  backgroundMode: "original",
+  backgroundColor: "#F4F1FF",
+  backgroundColorSecondary: "#7255F5",
+  backgroundImageUri: null,
+  backgroundBlur: 0.45,
+  maskFeather: 0.08,
+  subjectShadow: 0.24,
 };
 
 export const LOOK_KEYS: (keyof SavedLook)[] = [
