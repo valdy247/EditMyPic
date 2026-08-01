@@ -11,6 +11,7 @@ type Props = {
   value: number;
   minimumValue: number;
   maximumValue: number;
+  step?: number;
   disabled?: boolean;
   onValueChange: (value: number) => void;
   onSlidingComplete: (value: number) => void;
@@ -22,17 +23,24 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function roundToStep(value: number, minimum: number, step: number) {
+  if (step <= 0) return value;
+  const rounded = Math.round((value - minimum) / step) * step + minimum;
+  const decimals = Math.max(0, (step.toString().split(".")[1] || "").length);
+  return Number(rounded.toFixed(Math.min(decimals + 1, 6)));
+}
+
 export function EditorSlider({
   value,
   minimumValue,
   maximumValue,
+  step = 0.01,
   disabled = false,
   onValueChange,
   onSlidingComplete,
 }: Props) {
   const [trackWidth, setTrackWidth] = useState(0);
   const valueRef = useRef(value);
-  const startValueRef = useRef(value);
 
   useEffect(() => {
     valueRef.current = value;
@@ -40,17 +48,19 @@ export function EditorSlider({
 
   const range = maximumValue - minimumValue;
 
-  const valueFromAbsolutePosition = (position: number) => {
+  const valueFromPosition = (position: number) => {
     if (trackWidth <= 0 || range <= 0) return valueRef.current;
     const usableWidth = Math.max(1, trackWidth - THUMB_SIZE);
     const ratio = clamp((position - THUMB_SIZE / 2) / usableWidth, 0, 1);
-    return minimumValue + ratio * range;
+    const raw = minimumValue + ratio * range;
+    return clamp(roundToStep(raw, minimumValue, step), minimumValue, maximumValue);
   };
 
-  const updateValue = (next: number) => {
-    const clamped = clamp(next, minimumValue, maximumValue);
-    valueRef.current = clamped;
-    onValueChange(clamped);
+  const updateFromPosition = (position: number) => {
+    const next = valueFromPosition(position);
+    if (Math.abs(next - valueRef.current) < Number.EPSILON) return;
+    valueRef.current = next;
+    onValueChange(next);
   };
 
   const panResponder = useMemo(
@@ -58,21 +68,31 @@ export function EditorSlider({
       PanResponder.create({
         onStartShouldSetPanResponder: () => !disabled,
         onMoveShouldSetPanResponder: (_, gesture) =>
-          !disabled && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+          !disabled && Math.abs(gesture.dx) >= Math.abs(gesture.dy),
         onPanResponderGrant: (event) => {
-          startValueRef.current = valueRef.current;
-          updateValue(valueFromAbsolutePosition(event.nativeEvent.locationX));
+          updateFromPosition(event.nativeEvent.locationX);
         },
-        onPanResponderMove: (_, gesture) => {
-          if (trackWidth <= 0 || range <= 0) return;
-          const usableWidth = Math.max(1, trackWidth - THUMB_SIZE);
-          updateValue(startValueRef.current + (gesture.dx / usableWidth) * range);
+        onPanResponderMove: (event) => {
+          updateFromPosition(event.nativeEvent.locationX);
         },
-        onPanResponderRelease: () => onSlidingComplete(valueRef.current),
-        onPanResponderTerminate: () => onSlidingComplete(valueRef.current),
+        onPanResponderRelease: () => {
+          onSlidingComplete(valueRef.current);
+        },
+        onPanResponderTerminate: () => {
+          onSlidingComplete(valueRef.current);
+        },
         onPanResponderTerminationRequest: () => false,
       }),
-    [disabled, maximumValue, minimumValue, onSlidingComplete, onValueChange, range, trackWidth],
+    [
+      disabled,
+      maximumValue,
+      minimumValue,
+      onSlidingComplete,
+      onValueChange,
+      range,
+      step,
+      trackWidth,
+    ],
   );
 
   const handleLayout = (event: LayoutChangeEvent) => {
@@ -81,16 +101,23 @@ export function EditorSlider({
 
   const handleAccessibilityAction = (event: AccessibilityActionEvent) => {
     if (disabled) return;
-    const step = range / 20;
+    const fallbackStep = range / 100;
+    const effectiveStep = step > 0 ? step : fallbackStep;
     const direction = event.nativeEvent.actionName === "increment" ? 1 : -1;
-    const next = clamp(valueRef.current + step * direction, minimumValue, maximumValue);
-    updateValue(next);
+    const next = clamp(
+      roundToStep(valueRef.current + effectiveStep * direction, minimumValue, effectiveStep),
+      minimumValue,
+      maximumValue,
+    );
+    valueRef.current = next;
+    onValueChange(next);
     onSlidingComplete(next);
   };
 
   const ratio = range === 0 ? 0 : (value - minimumValue) / range;
   const normalized = clamp(ratio, 0, 1);
   const thumbPosition = normalized * Math.max(0, trackWidth - THUMB_SIZE);
+  const progressWidth = THUMB_SIZE / 2 + normalized * Math.max(0, trackWidth - THUMB_SIZE);
 
   return (
     <View
@@ -104,7 +131,7 @@ export function EditorSlider({
       {...panResponder.panHandlers}
     >
       <View style={styles.track} />
-      <View style={[styles.progress, { width: THUMB_SIZE / 2 + normalized * Math.max(0, trackWidth - THUMB_SIZE) }]} />
+      <View style={[styles.progress, { width: progressWidth }]} />
       <View style={[styles.thumb, { transform: [{ translateX: thumbPosition }] }]} />
     </View>
   );
@@ -112,7 +139,7 @@ export function EditorSlider({
 
 const styles = StyleSheet.create({
   touchArea: {
-    height: 48,
+    height: 46,
     justifyContent: "center",
   },
   disabled: {
