@@ -2,7 +2,7 @@
   "expo": {
     "name": "EditMyPic",
     "slug": "editmypic",
-    "version": "0.10.0",
+    "version": "0.10.1",
     "orientation": "default",
     "scheme": "editmypic",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.valdy247.editmypic",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Elige una foto y dale tu estilo sin salir de EditMyPic.",
         "NSPhotoLibraryAddUsageDescription": "Guarda tus ediciones terminadas directamente en Fotos.",
@@ -19,7 +19,11 @@
     },
     "android": {
       "package": "com.valdy247.editmypic",
-      "versionCode": 9
+      "versionCode": 10
+    },
+    "web": {
+      "output": "server",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
