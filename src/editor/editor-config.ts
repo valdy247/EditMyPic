@@ -1,6 +1,13 @@
 import type { CropPreset, EditorSettings } from "./types";
 
-export type PanelTab = "looks" | "adjust" | "crop" | "effects" | "export";
+export type PanelTab =
+  | "looks"
+  | "adjust"
+  | "crop"
+  | "background"
+  | "erase"
+  | "effects"
+  | "export";
 export type AdjustGroup = "light" | "color";
 export type ExportFormat = "jpeg" | "png";
 export type ExportEdge = 4096 | 2048 | 1080;
@@ -24,6 +31,8 @@ const signed = (value: number) => {
   return rounded > 0 ? `+${rounded}` : `${rounded}`;
 };
 
+const percent = (value: number) => `${Math.round(value * 100)}`;
+
 export const LIGHT_ADJUSTMENTS: Adjustment[] = [
   { key: "exposure", icon: "◒", label: "Exposición", minimum: -2, maximum: 2, step: 0.01, neutral: 0, format: (value) => signed(value * 50) },
   { key: "brightness", icon: "☀", label: "Brillo", minimum: 0.4, maximum: 1.6, step: 0.01, neutral: 1, format: (value) => signed((value - 1) * 100) },
@@ -44,10 +53,10 @@ export const COLOR_ADJUSTMENTS: Adjustment[] = [
 export const EFFECT_ADJUSTMENTS: Adjustment[] = [
   { key: "clarity", icon: "✧", label: "Claridad", minimum: -1, maximum: 1, step: 0.01, neutral: 0, format: (value) => signed(value * 100) },
   { key: "sharpness", icon: "△", label: "Definición", minimum: -1, maximum: 1, step: 0.01, neutral: 0, format: (value) => signed(value * 100) },
-  { key: "fade", icon: "◌", label: "Desvanecer", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: (value) => `${Math.round(value * 100)}` },
-  { key: "vignette", icon: "◍", label: "Viñeta", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: (value) => `${Math.round(value * 100)}` },
-  { key: "grain", icon: "⁙", label: "Grano", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: (value) => `${Math.round(value * 100)}` },
-  { key: "grayscale", icon: "◑", label: "Blanco y negro", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: (value) => `${Math.round(value * 100)}` },
+  { key: "fade", icon: "◌", label: "Desvanecer", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: percent },
+  { key: "vignette", icon: "◍", label: "Viñeta", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: percent },
+  { key: "grain", icon: "⁙", label: "Grano", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: percent },
+  { key: "grayscale", icon: "◑", label: "Blanco y negro", minimum: 0, maximum: 1, step: 0.01, neutral: 0, format: percent },
 ];
 
 export const CROP_ADJUSTMENTS: Adjustment[] = [
@@ -56,6 +65,22 @@ export const CROP_ADJUSTMENTS: Adjustment[] = [
   { key: "perspectiveY", icon: "↕", label: "Perspectiva V", minimum: -1, maximum: 1, step: 0.01, neutral: 0, format: (value) => signed(value * 100) },
   { key: "zoom", icon: "⌕", label: "Zoom", minimum: 1, maximum: 4, step: 0.01, neutral: 1, format: (value) => `${Math.round(value * 100)}%` },
 ];
+
+export const BACKGROUND_ADJUSTMENTS: Adjustment[] = [
+  { key: "maskFeather", icon: "◌", label: "Suavizar borde", minimum: 0, maximum: 1, step: 0.01, neutral: 0.08, format: percent },
+  { key: "subjectShadow", icon: "◒", label: "Sombra del sujeto", minimum: 0, maximum: 1, step: 0.01, neutral: 0.24, format: percent },
+];
+
+export const BACKGROUND_BLUR_ADJUSTMENT: Adjustment = {
+  key: "backgroundBlur",
+  icon: "◉",
+  label: "Desenfoque",
+  minimum: 0,
+  maximum: 1,
+  step: 0.01,
+  neutral: 0.45,
+  format: percent,
+};
 
 export const CROP_PRESETS: { id: CropPreset; label: string; ratio: string }[] = [
   { id: "original", label: "Original", ratio: "Auto" },
@@ -70,6 +95,8 @@ export const TAB_ITEMS: { id: PanelTab; icon: string; label: string }[] = [
   { id: "looks", icon: "✦", label: "Looks" },
   { id: "adjust", icon: "☀", label: "Ajustar" },
   { id: "crop", icon: "⌗", label: "Recorte" },
+  { id: "background", icon: "▣", label: "Fondo" },
+  { id: "erase", icon: "⌫", label: "Borrar" },
   { id: "effects", icon: "◌", label: "Efectos" },
   { id: "export", icon: "↑", label: "Guardar" },
 ];
@@ -78,6 +105,8 @@ export const PANEL_TITLES: Record<PanelTab, string> = {
   looks: "Un toque y listo",
   adjust: "Control preciso",
   crop: "Encuadre perfecto",
+  background: "Cambia el escenario",
+  erase: "Limpia lo que sobra",
   effects: "Acabado personal",
   export: "Lista para salir",
 };
@@ -86,6 +115,8 @@ export const PANEL_COPY: Record<PanelTab, string> = {
   looks: "Elige una estética y regula su intensidad.",
   adjust: "Luz y color organizados sin perderte.",
   crop: "Recorta, endereza y mueve la imagen con los dedos.",
+  background: "Separa el sujeto en el iPhone y elige un fondo nuevo.",
+  erase: "Pinta sobre personas u objetos y reconstruye esa zona.",
   effects: "Detalles sutiles que terminan la foto.",
   export: "Guarda en Fotos o compártela con el tamaño correcto.",
 };
