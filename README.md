@@ -14,7 +14,7 @@ Desde iPhone:
 2. Inicia sesión con GitHub.
 3. Selecciona `EditMyPic` y toca **Import**.
 4. Conserva la configuración automática de Next.js y toca **Deploy**.
-5. Vercel mostrará la dirección pública de la aplicación.
+5. Vercel instalará las dependencias, comprobará el proyecto y mostrará la dirección pública de la aplicación.
 
 Después del primer despliegue, cada cambio fusionado en la rama `main` se publicará automáticamente.
 
@@ -27,10 +27,6 @@ Después del primer despliegue, cada cambio fusionado en la rama `main` se publi
 - Exportación en PNG y JPEG
 - Interfaz adaptable para iPhone, tablet y escritorio
 - Procesamiento local: las fotografías no se suben a nuestro servidor
-
-## Validación automática
-
-GitHub Actions instala las dependencias, revisa TypeScript y construye la aplicación automáticamente. No es necesario ejecutar comandos localmente.
 
 ## Desarrollo opcional
 
