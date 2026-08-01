@@ -1,0 +1,13 @@
+name: Deploy EditMyPic API
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  deploy:
+    type: deploy
+    name: Deploy EAS Hosting
+    environment: production
+    params:
+      prod: true
