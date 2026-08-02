@@ -3,7 +3,7 @@
     "name": "EditMyPic",
     "slug": "editmypic",
     "owner": "valdy247",
-    "version": "0.10.2",
+    "version": "0.10.3",
     "orientation": "default",
     "scheme": "editmypic",
     "userInterfaceStyle": "dark",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.valdy247.editmypic",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Elige una foto y dale tu estilo sin salir de EditMyPic.",
         "NSPhotoLibraryAddUsageDescription": "Guarda tus ediciones terminadas directamente en Fotos.",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.valdy247.editmypic",
-      "versionCode": 11
+      "versionCode": 12
     },
     "web": {
       "output": "server",
