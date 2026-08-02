@@ -13,6 +13,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "env": {
         "EXPO_UNSTABLE_DEPLOY_SERVER": "1",
         "EXPO_PUBLIC_EDIT_API_URL": "/"
