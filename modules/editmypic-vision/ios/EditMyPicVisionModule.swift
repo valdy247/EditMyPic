@@ -13,9 +13,9 @@ private enum EditMyPicVisionError: Error, LocalizedError {
     case .invalidImage:
       return "No pudimos leer esta imagen. Prueba con otra foto."
     case .noSubject:
-      return "No encontramos un sujeto claro para separar del fondo."
+      return "No encontramos un sujeto separado del fondo. Prueba con una persona, mascota u objeto más cercano, o utiliza Borrar para marcar una zona."
     case .renderFailed:
-      return "No pudimos preparar la máscara del fondo."
+      return "No pudimos preparar el recorte. Inténtalo nuevamente."
     }
   }
 }
@@ -35,56 +35,94 @@ public class EditMyPicVisionModule: Module {
         throw EditMyPicVisionError.invalidImage
       }
 
+      let result = try self.generateBestMask(for: cgImage)
+      let outputURL = try self.writeMask(
+        pixelBuffer: result.mask,
+        width: cgImage.width,
+        height: cgImage.height,
+        enhanceSoftMask: result.enhanceSoftMask
+      )
+
+      return [
+        "maskUri": outputURL.absoluteString,
+        "mode": result.mode,
+        "width": cgImage.width,
+        "height": cgImage.height,
+      ]
+    }
+  }
+
+  private func generateBestMask(
+    for cgImage: CGImage
+  ) throws -> (mask: CVPixelBuffer, mode: String, enhanceSoftMask: Bool) {
+    if #available(iOS 17.0, *) {
       let requestHandler = VNImageRequestHandler(
         cgImage: cgImage,
         orientation: .up,
         options: [:]
       )
+      let request = VNGenerateForegroundInstanceMaskRequest()
+      try requestHandler.perform([request])
 
-      let mask: CVPixelBuffer
-      let mode: String
-
-      if #available(iOS 17.0, *) {
-        let request = VNGenerateForegroundInstanceMaskRequest()
-        try requestHandler.perform([request])
-
-        guard let observation = request.results?.first,
-              !observation.allInstances.isEmpty else {
-          throw EditMyPicVisionError.noSubject
-        }
-
-        mask = try observation.generateScaledMaskForImage(
+      if let observation = request.results?.first,
+         !observation.allInstances.isEmpty {
+        let mask = try observation.generateScaledMaskForImage(
           forInstances: observation.allInstances,
           from: requestHandler
         )
-        mode = "subjects"
-      } else {
-        let request = VNGeneratePersonSegmentationRequest()
-        request.qualityLevel = .accurate
-        request.outputPixelFormat = kCVPixelFormatType_OneComponent8
-        try requestHandler.perform([request])
-
-        guard let observation = request.results?.first else {
-          throw EditMyPicVisionError.noSubject
-        }
-
-        mask = observation.pixelBuffer
-        mode = "person"
+        return (mask, "subjects", false)
       }
-
-      let outputURL = try self.writeMask(
-        pixelBuffer: mask,
-        width: cgImage.width,
-        height: cgImage.height
+    } else {
+      let requestHandler = VNImageRequestHandler(
+        cgImage: cgImage,
+        orientation: .up,
+        options: [:]
       )
+      let request = VNGeneratePersonSegmentationRequest()
+      request.qualityLevel = .accurate
+      request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+      try requestHandler.perform([request])
 
-      return [
-        "maskUri": outputURL.absoluteString,
-        "mode": mode,
-        "width": cgImage.width,
-        "height": cgImage.height,
-      ]
+      if let observation = request.results?.first {
+        return (observation.pixelBuffer, "person", false)
+      }
     }
+
+    if let saliencyMask = try self.generateSaliencyMask(for: cgImage) {
+      return (saliencyMask, "subjects", true)
+    }
+
+    throw EditMyPicVisionError.noSubject
+  }
+
+  private func generateSaliencyMask(for cgImage: CGImage) throws -> CVPixelBuffer? {
+    let objectHandler = VNImageRequestHandler(
+      cgImage: cgImage,
+      orientation: .up,
+      options: [:]
+    )
+    let objectRequest = VNGenerateObjectnessBasedSaliencyImageRequest()
+    try objectHandler.perform([objectRequest])
+
+    if let observation = objectRequest.results?.first,
+       observation.salientObjects?.isEmpty == false {
+      return observation.pixelBuffer
+    }
+
+    let attentionHandler = VNImageRequestHandler(
+      cgImage: cgImage,
+      orientation: .up,
+      options: [:]
+    )
+    let attentionRequest = VNGenerateAttentionBasedSaliencyImageRequest()
+    try attentionHandler.perform([attentionRequest])
+
+    if let observation = attentionRequest.results?.first,
+       observation.salientObjects?.isEmpty == false {
+      return observation.pixelBuffer
+    }
+
+    return nil
   }
 
   private func fileURL(from uri: String) -> URL {
@@ -115,9 +153,26 @@ public class EditMyPicVisionModule: Module {
   private func writeMask(
     pixelBuffer: CVPixelBuffer,
     width: Int,
-    height: Int
+    height: Int,
+    enhanceSoftMask: Bool
   ) throws -> URL {
     var maskImage = CIImage(cvPixelBuffer: pixelBuffer)
+
+    if enhanceSoftMask {
+      maskImage = maskImage
+        .applyingFilter(
+          "CIGammaAdjust",
+          parameters: ["inputPower": 0.72]
+        )
+        .applyingFilter(
+          "CIColorControls",
+          parameters: [
+            kCIInputContrastKey: 3.2,
+            kCIInputBrightnessKey: -0.08,
+          ]
+        )
+    }
+
     let targetWidth = CGFloat(width)
     let targetHeight = CGFloat(height)
     let scaleX = targetWidth / max(1, maskImage.extent.width)
