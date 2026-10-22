@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 
 const configuredBase = process.env.EXPO_PUBLIC_EDIT_API_URL?.trim() || "";
@@ -18,7 +18,7 @@ export default function VideoStudio() {
  const [error,setError]=useState("");
  const [mode,setMode]=useState<"text"|"image">("text");
  async function generate(){
-  if (!/^https:\/\//i.test(API) && process.env.EXPO_OS !== "web") {setError("Configura EXPO_PUBLIC_EDIT_API_URL con la URL HTTPS del servidor Expo antes de probar en TestFlight.");return;}
+  if (!/^https:\/\//i.test(API) && Platform.OS !== "web") {setError("Configura EXPO_PUBLIC_EDIT_API_URL con la URL HTTPS del servidor Expo antes de probar en TestFlight.");return;}
   setBusy(true);setError("");setJob(null);
   try {
    const response=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,mode,imageUrl,ratio,duration})});
