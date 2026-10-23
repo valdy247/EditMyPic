@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+﻿import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#050609" },
@@ -102,7 +102,7 @@ export const styles = StyleSheet.create({
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 12 },
   },
-  gestureSurface: { ...StyleSheet.absoluteFillObject },
+  gestureSurface: { ...StyleSheet.absoluteFill },
   cropGrid: { position: "absolute", overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.34)", borderRadius: 4 },
   gridLineVertical: { position: "absolute", top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.34)" },
   gridLineHorizontal: { position: "absolute", left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.34)" },
@@ -315,3 +315,4 @@ export const styles = StyleSheet.create({
   toastText: { color: "#d2f4df", fontSize: 11, fontWeight: "900", textAlign: "center" },
   offscreenCanvas: { position: "absolute", left: -10000, top: 0, opacity: 0 },
 });
+

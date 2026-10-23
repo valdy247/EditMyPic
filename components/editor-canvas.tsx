@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from "react";
+﻿import { forwardRef, useMemo, type ComponentRef } from "react";
 import {
   Blur,
   Canvas,
@@ -12,7 +12,6 @@ import {
   RadialGradient,
   Rect,
   rect,
-  type SkiaView,
   useImage,
   vec,
 } from "@shopify/react-native-skia";
@@ -25,6 +24,8 @@ import {
   getRotatedSourceSize,
 } from "@/src/editor/geometry";
 import type { EditorSettings, ImageAsset } from "@/src/editor/types";
+
+type SkiaView = ComponentRef<typeof Canvas>;
 
 type Props = {
   asset: ImageAsset;
@@ -386,3 +387,4 @@ export const EditorCanvas = forwardRef<SkiaView, Props>(function EditorCanvas(
     </Canvas>
   );
 });
+

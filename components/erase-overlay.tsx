@@ -1,3 +1,4 @@
+﻿type SkiaView = React.ElementRef<typeof import('@shopify/react-native-skia').Canvas>;
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import {
   PanResponder,
@@ -10,7 +11,6 @@ import {
   Path,
   Rect,
   Skia,
-  type SkiaView,
 } from "@shopify/react-native-skia";
 
 import type {
@@ -222,8 +222,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   border: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: 1,
     borderColor: "rgba(255,116,143,0.7)",
   },
 });
+
