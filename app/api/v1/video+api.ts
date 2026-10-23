@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     return json({ error: "JSON invÃ¡lido." }, 400);
   }
 
-  const { prompt, mode, ratio, duration, imageUrl } = body || {};
+  const { prompt, mode, ratio, duration, imageUrl, videoModel } = body || {};
 
   if (
     typeof prompt !== "string" ||
@@ -74,23 +74,36 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!["gen4.5", "kling"].includes(videoModel)) {
+    return json({ error: "Motor de video no válido." }, 400);
+  }
+  const selectedModel = videoModel === "kling"
+    ? "kling3.0_pro"
+    : "gen4.5";
+
+  const selectedRatio = selectedModel === "kling3.0_pro"
+    ? (ratio === "1280:720" ? "1920:1080" : "1080:1920")
+    : ratio;
+
   const path = mode === "image"
     ? "/image_to_video"
     : "/text_to_video";
 
   const payload = mode === "image"
     ? {
-        model: "gen4.5",
+        model: selectedModel,
         promptImage: imageUrl,
         promptText: prompt,
-        ratio,
+        ratio: selectedRatio,
         duration,
+        ...(selectedModel === "kling3.0_pro" ? { audio: true } : {}),
       }
     : {
-        model: "gen4.5",
+        model: selectedModel,
         promptText: prompt,
-        ratio,
+        ratio: selectedRatio,
         duration,
+        ...(selectedModel === "kling3.0_pro" ? { audio: true } : {}),
       };
 
   try {
@@ -157,4 +170,6 @@ export async function GET(request: Request) {
     return json({ error: "No se pudo consultar Runway." }, 502);
   }
 }
+
+
 

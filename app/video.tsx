@@ -208,7 +208,7 @@ export default function VideoStudio() {
             onPress={() => setVideoModel(model)}
           >
             <Text style={s.white}>
-              {model === "gen4.5" ? "Runway Gen-4.5" : "Kling (próximamente)"}
+              {model === "gen4.5" ? "Runway Gen-4.5" : "Kling 3.0 Pro + audio"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -460,5 +460,6 @@ const s = StyleSheet.create({
     gap: 12,
   },
 });
+
 
 
