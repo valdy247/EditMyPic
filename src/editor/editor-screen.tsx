@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   LayoutChangeEvent,
@@ -28,6 +29,7 @@ import { useEditorController } from "@/src/editor/use-editor-controller";
 export default function EditorScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const editor = useEditorController();
+  const router = useRouter();
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
 
   const isPhoneLandscape = windowWidth > windowHeight && windowHeight < 520;
@@ -96,6 +98,7 @@ export default function EditorScreen() {
           </View>
 
           <View style={styles.topActions}>
+            <Pressable accessibilityLabel="Abrir AI Video Studio" onPress={() => router.push("/video")} style={styles.photoButton}><Text style={styles.photoButtonText}>Video IA</Text></Pressable>
             <Pressable
               accessibilityLabel="Deshacer"
               disabled={!editor.canUndo}
