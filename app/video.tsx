@@ -132,6 +132,45 @@ export default function VideoStudio() {
     }
   }, [job, historyLoaded]);
 
+  useEffect(() => {
+    if (!job?.id || ["SUCCEEDED", "FAILED", "CANCELED"].includes(job.status)) {
+      return;
+    }
+
+    let active = true;
+
+    const timer = setInterval(async () => {
+      try {
+        const response = await fetch(
+          API + "?id=" + encodeURIComponent(job.id)
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (active) {
+          setJob((previous) =>
+            previous?.id === job.id
+              ? {
+                  ...previous,
+                  status: data.status,
+                  output: data.output,
+                  failure: data.failure,
+                }
+              : previous
+          );
+        }
+      } catch {
+        console.warn("Video status update failed");
+      }
+    }, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [job?.id, job?.status]);
   async function selectPhoto() {
     try {
       const permission =
@@ -551,6 +590,7 @@ const s = StyleSheet.create({
     gap: 12,
   },
 });
+
 
 
 
