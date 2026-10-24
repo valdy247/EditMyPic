@@ -1,5 +1,5 @@
 ﻿
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { File, Paths } from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -100,6 +101,36 @@ export default function VideoStudio() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"text" | "image">("text");
+
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  useEffect(() => {
+    async function restoreVideo() {
+      try {
+        const saved = await AsyncStorage.getItem("editmypic:last-video-job");
+        if (saved) {
+          const previous = JSON.parse(saved) as Job;
+          if (previous?.id) setJob(previous);
+        }
+      } catch {
+        console.warn("Could not restore video history");
+      } finally {
+        setHistoryLoaded(true);
+      }
+    }
+    restoreVideo();
+  }, []);
+
+  useEffect(() => {
+    if (!historyLoaded) return;
+    if (job) {
+      AsyncStorage.setItem("editmypic:last-video-job", JSON.stringify(job))
+        .catch(() => console.warn("Could not save video job"));
+    } else {
+      AsyncStorage.removeItem("editmypic:last-video-job")
+        .catch(() => console.warn("Could not clear video job"));
+    }
+  }, [job, historyLoaded]);
 
   async function selectPhoto() {
     try {
@@ -520,6 +551,7 @@ const s = StyleSheet.create({
     gap: 12,
   },
 });
+
 
 
 
