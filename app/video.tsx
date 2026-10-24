@@ -14,6 +14,9 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { File, Paths } from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 const configuredBase =
   process.env.EXPO_PUBLIC_EDIT_API_URL?.trim() || "";
@@ -29,6 +32,61 @@ type Job = {
   failure?: string;
 };
 
+async function saveVideoToPhotos(url: string) {
+  try {
+    const permission = await MediaLibrary.requestPermissionsAsync(true);
+
+    if (!permission.granted) {
+      Alert.alert("Permiso necesario", "Permite guardar videos en Fotos.");
+      return;
+    }
+
+    const destination = new File(
+      Paths.cache,
+      `editmypic-${Date.now()}.mp4`
+    );
+
+    const downloaded = await File.downloadFileAsync(url, destination);
+    await MediaLibrary.saveToLibraryAsync(downloaded.uri);
+
+    Alert.alert("Video guardado", "Encontraras tu video en Fotos.");
+  } catch {
+    Alert.alert("Error", "No se pudo descargar el video.");
+  }
+}
+function VideoPreview({ url }: { url: string }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = false;
+  });
+
+  return (
+    <View style={{ gap: 10, marginTop: 12 }}>
+      <VideoView
+        player={player}
+        nativeControls
+        style={{
+          width: "100%",
+          aspectRatio: 9 / 16,
+          maxHeight: 430,
+          borderRadius: 16,
+          backgroundColor: "#000",
+        }}
+      />
+      <TouchableOpacity
+        style={s.button}
+        onPress={() => player.play()}
+      >
+        <Text style={s.buttonText}>Reproducir video</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={s.button}
+        onPress={() => saveVideoToPhotos(url)}
+      >
+        <Text style={s.buttonText}>Guardar en Fotos</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 export default function VideoStudio() {
   const router = useRouter();
 
@@ -225,6 +283,8 @@ export default function VideoStudio() {
         maxLength={1000}
       />
 
+      <Text style={s.note}>{prompt.length}/1000 caracteres</Text>
+
       {mode === "image" && (
         <>
           <Text style={s.label}>FotografÃ­a de referencia</Text>
@@ -338,15 +398,15 @@ export default function VideoStudio() {
 
           {job.status === "SUCCEEDED" &&
             job.output?.map((url, i) => (
-              <TouchableOpacity
-                key={i}
-                style={s.button}
-                onPress={() => Linking.openURL(url)}
-              >
-                <Text style={s.buttonText}>
-                  Abrir video {i + 1}
-                </Text>
-              </TouchableOpacity>
+              <View key={i}>
+  <VideoPreview url={url} />
+  <TouchableOpacity
+    style={s.button}
+    onPress={() => Linking.openURL(url)}
+  >
+    <Text style={s.buttonText}>Abrir video original</Text>
+  </TouchableOpacity>
+</View>
             ))}
 
           {!!job.failure && (
@@ -364,7 +424,7 @@ export default function VideoStudio() {
 const s = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: "#0a0d18",
+    backgroundColor: "#130d1c",
   },
   content: {
     padding: 24,
@@ -392,7 +452,7 @@ const s = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    backgroundColor: "#181e30",
+    backgroundColor: "#251a30",
     borderWidth: 1,
     borderColor: "#333c56",
     borderRadius: 14,
@@ -401,7 +461,7 @@ const s = StyleSheet.create({
     fontSize: 15,
   },
   multiline: {
-    height: 135,
+    minHeight: 200,
     textAlignVertical: "top",
   },
   row: {
@@ -413,10 +473,10 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 15,
     borderRadius: 12,
-    backgroundColor: "#252d43",
+    backgroundColor: "#38263f",
   },
   active: {
-    backgroundColor: "#6043ae",
+    backgroundColor: "#b84f97",
   },
   white: {
     color: "#fff",
@@ -428,7 +488,7 @@ const s = StyleSheet.create({
     lineHeight: 19,
   },
   button: {
-    backgroundColor: "#8260e8",
+    backgroundColor: "#e5689b",
     borderRadius: 14,
     padding: 16,
     alignItems: "center",
@@ -460,6 +520,11 @@ const s = StyleSheet.create({
     gap: 12,
   },
 });
+
+
+
+
+
 
 
 
