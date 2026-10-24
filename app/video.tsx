@@ -327,6 +327,12 @@ export default function VideoStudio() {
         ))}
       </View>
 
+      <TouchableOpacity
+        style={s.button}
+        onPress={() => router.push("/characters")}
+      >
+        <Text style={s.buttonText}>🎭 Biblioteca de personajes</Text>
+      </TouchableOpacity>
       <Text style={s.label}>Motor de video</Text>
       <View style={s.row}>
         {(["gen4.5", "kling"] as const).map((model) => (
@@ -590,6 +596,7 @@ const s = StyleSheet.create({
     gap: 12,
   },
 });
+
 
 
 
