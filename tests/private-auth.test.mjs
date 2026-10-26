@@ -128,3 +128,19 @@ test("production allowlist rejects lookalike domains and cross-site fetches", ()
     },
   })), false);
 });
+
+test("secure production session survives an internal localhost proxy", async () => {
+  setConfig();
+  const login = new Request("http://127.0.0.1:3000/api/v1/session", {
+    method: "POST",
+    headers: { Origin: "https://editmypic.expo.app", "Sec-Fetch-Site": "same-origin" },
+  });
+  assert.equal(isSameOrigin(login), true);
+  const cookie = privateSessionCookie(login, await issueSession());
+  assert.match(cookie, /^__Host-editmypic_session=/);
+  assert.match(cookie, /; Secure/);
+  const followup = new Request("http://127.0.0.1:3000/api/v1/session", {
+    headers: { Cookie: cookie.split(";")[0] },
+  });
+  assert.equal(await isAuthorized(followup), true);
+});
