@@ -32,3 +32,29 @@ La compilación y firma de iOS se harán en la nube con Expo Application Service
 ## Identificador provisional
 
 `com.valdy247.editmypic`
+
+
+## AI Video Studio para PC (web)
+
+La ruta web `/` y `/video` ahora presentan un estudio de video pensado para navegadores de escritorio. La pantalla nativa `app/video.tsx` permanece intacta; Expo Router utiliza `app/video.web.tsx` solo en web.
+
+### Desarrollo local
+
+1. Instala las dependencias con `npm ci` (Node 22 o superior).
+2. Configura `EXPO_PUBLIC_EDIT_API_URL` con la URL HTTPS del servidor Expo que expone `/api/v1/video`, o déjala sin configurar si la web y la API se sirven desde el mismo origen.
+3. Ejecuta `npm run web` y abre la dirección local que indique Expo.
+4. La variable `RUNWAYML_API_SECRET` debe existir **solo en el servidor**; nunca la coloques en el código web ni uses el prefijo `EXPO_PUBLIC_`.
+
+### Funciones web
+
+- Carga de imágenes JPG/PNG/WebP con compresión en el navegador si exceden el límite del backend.
+- Prompts de hasta 1,000 caracteres, Kling 3.0 Pro + audio o Runway Gen-4.5, duración 5/10 segundos y formato vertical/horizontal.
+- Consulta automática de tareas y reproductor con enlace para abrir/guardar el resultado.
+- Historial de hasta 30 tareas en `localStorage` del navegador, sin borrar la anterior al iniciar otra generación.
+- Recuperación de una tarea de Runway pegando su ID (si sigue accesible desde la misma cuenta API).
+
+**Importante:** El historial web es local a ese navegador; no se sincroniza con iPhone ni almacena los archivos MP4. Los enlaces de video de Runway pueden expirar: descarga los videos terminados.
+
+### Antes de publicar para usuarios
+
+El endpoint actual `/api/v1/video` no requiere autenticación. **No se debe abrir una web de generación al público sin añadir autenticación y límites de uso en el backend**, porque las solicitudes consumen créditos. El estudio web de esta rama es una base de desarrollo; no implica despliegue público ni que se hayan validado generaciones reales.
