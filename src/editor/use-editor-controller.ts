@@ -9,6 +9,7 @@ import * as Sharing from "expo-sharing";
 import { ImageFormat, useCanvasRef } from "@shopify/react-native-skia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Vibration } from "react-native";
+import { usePrivateSession } from "@/src/auth/native-session";
 
 import type { ViewportTransform } from "@/components/editor-gesture-surface";
 import {
@@ -121,6 +122,7 @@ async function deleteOwnedFile(uri: string | null | undefined) {
 }
 
 export function useEditorController() {
+  const { token, logout } = usePrivateSession();
   const exportCanvasRef = useCanvasRef();
   const aiCanvasRef = useCanvasRef();
   const eraseMaskCanvasRef = useCanvasRef();
@@ -656,6 +658,10 @@ export function useEditorController() {
 
   const applyObjectErase = useCallback(async () => {
     if (!asset || processingAction || eraseStrokes.length === 0) return;
+    if (!token) {
+      Alert.alert("Acceso privado", "Inicia sesión para utilizar Borrar objetos con IA.");
+      return;
+    }
     const endpoint = getEraseEndpoint();
     if (!endpoint) {
       Alert.alert(
@@ -698,7 +704,7 @@ export function useEditorController() {
 
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
         body: JSON.stringify({
           imageBase64,
           maskBase64,
@@ -707,6 +713,7 @@ export function useEditorController() {
         }),
       });
       const payload = (await response.json()) as EraseApiResponse;
+      if (response.status === 401) logout();
       if (!response.ok || !payload.imageBase64) {
         throw new Error(payload.error || "La IA no pudo completar el borrado.");
       }
@@ -751,6 +758,8 @@ export function useEditorController() {
     processingAction,
     resetHistory,
     showToast,
+    token,
+    logout,
   ]);
 
   const resetCurrentSection = useCallback(() => {
