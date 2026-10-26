@@ -1,3 +1,5 @@
+import { isAuthorized, isPrivateAuthConfigured, isSafeAuthenticatedWrite, unauthorizedResponse } from "@/src/server/private-auth";
+
 const OPENAI_EDIT_URL = "https://api.openai.com/v1/images/edits";
 const MAX_BASE64_CHARACTERS = 6_500_000;
 const MAX_REQUESTS_PER_HOUR = 20;
@@ -99,6 +101,8 @@ function safeErrorMessage(payload: OpenAIImageResponse) {
 }
 
 export async function POST(request: Request) {
+  if (!isPrivateAuthConfigured()) return json({ error: "Acceso privado sin configurar." }, 503);
+  if (!await isAuthorized(request) || !isSafeAuthenticatedWrite(request)) return unauthorizedResponse();
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return json(

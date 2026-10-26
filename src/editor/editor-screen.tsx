@@ -25,10 +25,12 @@ import {
 import { fitAspectWithin, getCropAspect } from "@/src/editor/geometry";
 import { styles } from "@/src/editor/editor-styles";
 import { useEditorController } from "@/src/editor/use-editor-controller";
+import { PrivateLogin, usePrivateSession } from "@/src/auth/native-session";
 
 export default function EditorScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const editor = useEditorController();
+  const { token } = usePrivateSession();
   const router = useRouter();
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
 
@@ -356,6 +358,14 @@ export default function EditorScreen() {
           </>
         ) : null}
       </View>
+      {editor.activeTab === "erase" && !token ? (
+        <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "#130d1c", zIndex: 100 }}>
+          <Pressable onPress={() => editor.openTab("looks", usesBottomPanel, true)} style={{ paddingHorizontal: 24, paddingTop: 15 }}>
+            <Text style={{ color: "#f5b5db", fontSize: 15 }}>← Volver al editor</Text>
+          </Pressable>
+          <PrivateLogin title="Borrar objetos con IA" />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

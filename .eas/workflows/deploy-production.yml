@@ -1,0 +1,29 @@
+name: EditMyPic private production release
+
+# This workflow never runs automatically on pushes.
+# Run it manually only after confirming the existing iPhone clients
+# support the new authenticated video API.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    name: Verify web and private access
+    environment: production
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Private access tests
+        run: npm run test:auth
+      - name: Export web and server API routes
+        run: npx expo export --platform web
+
+  deploy_web:
+    name: Deploy private studio to Production
+    needs: [verify]
+    type: deploy
+    environment: production
+    params:
+      prod: true

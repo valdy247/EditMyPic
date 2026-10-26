@@ -1,5 +1,6 @@
 ﻿
 import React, { useEffect, useState } from "react";
+import { PrivateLogin, usePrivateSession } from "@/src/auth/native-session";
 import {
   ActivityIndicator,
   Alert,
@@ -90,6 +91,7 @@ function VideoPreview({ url }: { url: string }) {
 }
 export default function VideoStudio() {
   const router = useRouter();
+  const { token, logout } = usePrivateSession();
 
   const [prompt, setPrompt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -133,7 +135,7 @@ export default function VideoStudio() {
   }, [job, historyLoaded]);
 
   useEffect(() => {
-    if (!job?.id || ["SUCCEEDED", "FAILED", "CANCELED"].includes(job.status)) {
+    if (!token || !job?.id || ["SUCCEEDED", "FAILED", "CANCELED"].includes(job.status)) {
       return;
     }
 
@@ -142,8 +144,10 @@ export default function VideoStudio() {
     const timer = setInterval(async () => {
       try {
         const response = await fetch(
-          API + "?id=" + encodeURIComponent(job.id)
+          API + "?id=" + encodeURIComponent(job.id),
+          { headers: { Authorization: "Bearer " + token } }
         );
+        if (response.status === 401) { logout(); return; }
 
         if (!response.ok) return;
 
@@ -170,7 +174,7 @@ export default function VideoStudio() {
       active = false;
       clearInterval(timer);
     };
-  }, [job?.id, job?.status]);
+  }, [job?.id, job?.status, token]);
   async function selectPhoto() {
     try {
       const permission =
@@ -232,7 +236,7 @@ export default function VideoStudio() {
     try {
       const response = await fetch(API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
         body: JSON.stringify({
           prompt,
           mode,
@@ -244,6 +248,7 @@ export default function VideoStudio() {
       });
 
       const data = await response.json();
+      if (response.status === 401) logout();
 
       if (!response.ok) {
         throw new Error(data.error || "No se pudo generar.");
@@ -267,10 +272,12 @@ export default function VideoStudio() {
 
     try {
       const response = await fetch(
-        API + "?id=" + encodeURIComponent(job.id)
+        API + "?id=" + encodeURIComponent(job.id),
+        { headers: { Authorization: "Bearer " + token } }
       );
 
       const data = await response.json();
+      if (response.status === 401) logout();
 
       if (!response.ok) {
         throw new Error(
@@ -296,6 +303,17 @@ export default function VideoStudio() {
   const ready =
     prompt.trim().length >= 3 &&
     (mode === "text" || imageUrl.length > 0);
+
+  if (!token) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#130d1c" }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: 24, paddingTop: 50 }}>
+          <Text style={s.link}>← Volver al editor</Text>
+        </TouchableOpacity>
+        <PrivateLogin />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
