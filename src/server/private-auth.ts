@@ -1,6 +1,7 @@
 // Server-only authentication for the single-owner EditMyPic studio.
 // Do not import this module from client components.
-const COOKIE_NAME = "__Host-editmypic_session";
+const SECURE_COOKIE_NAME = "__Host-editmypic_session";
+const DEV_COOKIE_NAME = "editmypic_dev_session";
 const SESSION_SECONDS = 60 * 60 * 12;
 const encoder = new TextEncoder();
 
@@ -17,6 +18,10 @@ export function isPrivateAuthConfigured() {
 
 function secureCookie(request: Request) {
   return new URL(request.url).protocol === "https:";
+}
+
+function cookieName(request: Request) {
+  return secureCookie(request) ? SECURE_COOKIE_NAME : DEV_COOKIE_NAME;
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array) {
@@ -92,7 +97,7 @@ function readCookie(request: Request) {
   const cookieHeader = request.headers.get("cookie") || "";
   for (const entry of cookieHeader.split(";")) {
     const [name, ...value] = entry.trim().split("=");
-    if (name === COOKIE_NAME) return value.join("=");
+    if (name === cookieName(request)) return value.join("=");
   }
   return "";
 }
@@ -121,11 +126,11 @@ export function isSafeAuthenticatedWrite(request: Request) {
 }
 
 export function privateSessionCookie(request: Request, token: string) {
-  return COOKIE_NAME + "=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + SESSION_SECONDS + (secureCookie(request) ? "; Secure" : "");
+  return cookieName(request) + "=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + SESSION_SECONDS + (secureCookie(request) ? "; Secure" : "");
 }
 
 export function clearPrivateSessionCookie(request: Request) {
-  return COOKIE_NAME + "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + (secureCookie(request) ? "; Secure" : "");
+  return cookieName(request) + "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + (secureCookie(request) ? "; Secure" : "");
 }
 
 export function unauthorizedResponse() {
