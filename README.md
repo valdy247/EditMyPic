@@ -36,14 +36,14 @@ La compilación y firma de iOS se harán en la nube con Expo Application Service
 
 ## AI Video Studio para PC (web)
 
-La ruta web `/` y `/video` ahora presentan un estudio de video pensado para navegadores de escritorio. La pantalla nativa `app/video.tsx` permanece intacta; Expo Router utiliza `app/video.web.tsx` solo en web.
+La ruta web `/` y `/video` ahora presentan un estudio de video pensado para navegadores de escritorio. La pantalla nativa `app/video.tsx` sigue disponible con inicio de sesión privado. Expo Router utiliza `app/video.web.tsx` solo en web. La edición de fotos sin IA continúa funcionando sin iniciar sesión.
 
 ### Desarrollo local
 
 1. Instala las dependencias con `npm ci` (Node 22 o superior).
 2. Configura `EXPO_PUBLIC_EDIT_API_URL` con la URL HTTPS del servidor Expo que expone `/api/v1/video`, o déjala sin configurar si la web y la API se sirven desde el mismo origen.
 3. Ejecuta `npm run web` y abre la dirección local que indique Expo.
-4. La variable `RUNWAYML_API_SECRET` debe existir **solo en el servidor**; nunca la coloques en el código web ni uses el prefijo `EXPO_PUBLIC_`.
+4. Configura las variables de servidor `EDITMYPIC_PRIVATE_PASSWORD` (mínimo 20 caracteres) y `EDITMYPIC_SESSION_SECRET` (mínimo 32 caracteres), además de `RUNWAYML_API_SECRET` y, si usas Borrar objetos, `OPENAI_API_KEY`. **Nunca** uses el prefijo `EXPO_PUBLIC_` para secretos.
 
 ### Funciones web
 
@@ -55,6 +55,23 @@ La ruta web `/` y `/video` ahora presentan un estudio de video pensado para nave
 
 **Importante:** El historial web es local a ese navegador; no se sincroniza con iPhone ni almacena los archivos MP4. Los enlaces de video de Runway pueden expirar: descarga los videos terminados.
 
-### Antes de publicar para usuarios
+### Seguridad privada
 
-El endpoint actual `/api/v1/video` no requiere autenticación. **No se debe abrir una web de generación al público sin añadir autenticación y límites de uso en el backend**, porque las solicitudes consumen créditos. El estudio web de esta rama es una base de desarrollo; no implica despliegue público ni que se hayan validado generaciones reales.
+- El sitio web muestra una pantalla de acceso antes de permitir el estudio. Las API de generación de video, consulta de tareas y borrado de objetos requieren una sesión válida.
+- El servidor firma sesiones con HMAC SHA-256; el navegador usa cookie HttpOnly, SameSite=Strict y Secure en HTTPS. El cliente nativo usa un token temporal solo en memoria (sin guardar la contraseña).
+- Las sesiones duran 12 horas. El historial web es local al navegador y **no** es una copia de seguridad de videos.
+- El servidor no funciona si faltan las dos variables de acceso privado o son demasiado cortas.
+- El limitador de intentos es en memoria y no se comparte entre instancias: para mayor seguridad en producción conviene activar reglas de acceso/WAF en el hosting.
+- `.env` ya no está versionado. Si anteriormente se subieron claves reales al repositorio, hay que rotarlas: borrarlas del último commit no elimina su historial.
+- No expongas la contraseña ni el secreto de sesión en GitHub, capturas, logs, frontend ni chats.
+
+### Publicación segura con EAS Hosting
+
+1. En el proyecto Expo de EditMyPic, configura en **Production** las variables `EDITMYPIC_PRIVATE_PASSWORD`, `EDITMYPIC_SESSION_SECRET`, `RUNWAYML_API_SECRET` y, si corresponde, `OPENAI_API_KEY`. Usa visibilidad **Sensitive** para EAS Hosting.
+2. Configura también las variables equivalentes en **Preview** para pruebas, usando una contraseña y secreto de sesión diferentes a Production.
+3. En una computadora con Node 22 y Expo CLI, ejecuta `npm ci`, `npm run typecheck`, `npx expo export --platform web` y `eas deploy --environment preview`. Comprueba la URL de preview sin usar créditos reales hasta verificar acceso y generación.
+4. Verifica que los endpoints devuelvan 401 sin sesión, que el login correcto permita usar la web, que la sesión caduque, y que el iPhone actualizado pueda iniciar sesión y usar las herramientas de IA.
+5. **Antes de desplegar a Production**, distribuye una nueva versión de iPhone compatible con el login. Las versiones antiguas no podrán llamar a las API protegidas. Coordina el cambio.
+6. Después de aprobar las pruebas, exporta y publica con `eas deploy --environment production` y comprueba `https://editmypic.expo.app`.
+
+**Estado:** código preparado en una rama de desarrollo. Aún requiere typecheck, pruebas funcionales y configuración privada en EAS. No equivale a una publicación completada.
