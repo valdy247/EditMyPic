@@ -3,10 +3,8 @@ import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, TextInput
 import { StatusBar } from "expo-status-bar";
 import { Stack } from "expo-router";
 
-const BASE = process.env.EXPO_PUBLIC_EDIT_API_URL?.trim() || "";
-const SESSION_API = /^https:\/\//i.test(BASE)
-  ? BASE.replace(/\/$/, "") + "/api/v1/session"
-  : "/api/v1/session";
+// Same-origin sessions are required for HttpOnly cookies on preview and production.
+const SESSION_API = "/api/v1/session";
 
 export default function WebRootLayout() {
   const [status, setStatus] = useState<"checking" | "locked" | "ready" | "unconfigured">("checking");
