@@ -23,7 +23,10 @@ function secureCookie(request: Request) {
   const url = new URL(request.url);
   // Do not rely solely on the internal URL protocol behind EAS Hosting:
   // the public HTTPS endpoint may be proxied to an internal HTTP URL.
-  return url.protocol === "https:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  return url.protocol === "https:" ||
+    request.headers.get("origin") === PRODUCTION_ORIGIN ||
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https" ||
+    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
 }
 
 function cookieName(request: Request) {
@@ -103,7 +106,9 @@ function readCookie(request: Request) {
   const cookieHeader = request.headers.get("cookie") || "";
   for (const entry of cookieHeader.split(";")) {
     const [name, ...value] = entry.trim().split("=");
-    if (name === cookieName(request)) return value.join("=");
+    if (name === cookieName(request) ||
+        // Internal loopback proxy requests may omit forwarding headers on GET.
+        (name === SECURE_COOKIE_NAME && !secureCookie(request))) return value.join("=");
   }
   return "";
 }
