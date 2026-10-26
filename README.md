@@ -75,3 +75,12 @@ La ruta web `/` y `/video` ahora presentan un estudio de video pensado para nave
 6. Después de aprobar las pruebas, exporta y publica con `eas deploy --environment production` y comprueba `https://editmypic.expo.app`.
 
 **Estado:** código preparado en una rama de desarrollo. Aún requiere typecheck, pruebas funcionales y configuración privada en EAS. No equivale a una publicación completada.
+
+
+### Flujo de publicación Production (sin Preview)
+
+Se añadió `.eas/workflows/deploy-production.yml`. Este flujo **solo se ejecuta manualmente**: primero comprueba TypeScript, ejecuta pruebas de autenticación y exporta la web; únicamente si todas las verificaciones pasan, publica en EAS Hosting usando las variables de **Production**.
+
+**Antes de ejecutarlo:** confirmar que `EDITMYPIC_PRIVATE_PASSWORD`, `EDITMYPIC_SESSION_SECRET`, `RUNWAYML_API_SECRET` y `OPENAI_API_KEY` (si se usa Borrar objetos) existen en Production. Confirmar que los clientes iPhone en uso ya tienen soporte para el login privado, o las generaciones de las versiones antiguas dejarán de funcionar tras la publicación.
+
+Desde una copia actualizada del repositorio con los cambios integrados y la sesión Expo iniciada, ejecutar `eas workflow:run .eas/workflows/deploy-production.yml`. No se ha ejecutado este comando ni desplegado esta rama desde el chat. Los trabajos fallidos de GitHub Actions aún no permiten afirmar que la aplicación compile.
