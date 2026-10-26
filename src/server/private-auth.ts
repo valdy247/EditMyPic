@@ -43,7 +43,15 @@ async function signingKey(secret: string) {
 }
 
 function toBase64Url(value: Uint8Array) {
-  return Buffer.from(value).toString("base64url");
+  let binary = "";
+  for (const byte of value) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 export async function issueSession() {
@@ -54,7 +62,7 @@ export async function issueSession() {
     exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS,
     nonce: crypto.randomUUID(),
   };
-  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const encoded = toBase64Url(encoder.encode(JSON.stringify(payload)));
   const signature = new Uint8Array(await crypto.subtle.sign("HMAC", await signingKey(config.secret), encoder.encode(encoded)));
   return encoded + "." + toBase64Url(signature);
 }
@@ -67,10 +75,10 @@ async function validSession(value: string) {
   try {
     const verified = await crypto.subtle.verify(
       "HMAC", await signingKey(config.secret),
-      Buffer.from(pieces[1], "base64url"), encoder.encode(pieces[0])
+      fromBase64Url(pieces[1]), encoder.encode(pieces[0])
     );
     if (!verified) return false;
-    const payload = JSON.parse(Buffer.from(pieces[0], "base64url").toString("utf8"));
+    const payload = JSON.parse(new TextDecoder().decode(fromBase64Url(pieces[0])));
     const now = Math.floor(Date.now() / 1000);
     return payload.sub === "owner" && Number.isSafeInteger(payload.exp) && payload.exp > now && payload.exp <= now + SESSION_SECONDS;
   } catch {
