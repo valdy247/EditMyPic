@@ -134,6 +134,7 @@ export default function WebVideoStudio() {
     try {
       const response = await fetch(API + "?id=" + encodeURIComponent(id), { cache: "no-store" });
       const data = await response.json();
+      if (response.status === 401) { window.location.reload(); return; }
       if (!response.ok) throw new Error(data.error || "No se pudo consultar el video.");
       setJobs((previous) => previous.map((job) =>
         job.id === id ? {
@@ -192,6 +193,7 @@ export default function WebVideoStudio() {
         body: JSON.stringify({ prompt: prompt.trim(), mode, imageUrl: mode === "image" ? imageData : "", ratio, duration, videoModel: model }),
       });
       const data = await response.json();
+      if (response.status === 401) { window.location.reload(); return; }
       if (!response.ok) throw new Error(data.error || "No se pudo iniciar la generación.");
       if (typeof data.id !== "string") throw new Error("El servidor no devolvió un ID de tarea.");
       const next: Job = {
@@ -232,6 +234,7 @@ export default function WebVideoStudio() {
     try {
       const response = await fetch(API + "?id=" + encodeURIComponent(id), { cache: "no-store" });
       const data = await response.json();
+      if (response.status === 401) { window.location.reload(); return; }
       if (!response.ok) throw new Error(data.error || "No se encontró la tarea en esta cuenta.");
       const next: Job = {
         id,
@@ -276,7 +279,7 @@ export default function WebVideoStudio() {
       </aside>
 
       <main className="emp-main">
-        <header className="emp-topbar"><div className="emp-breadcrumb">Workspace <span>/</span> AI Video Studio</div><span className="emp-top-pill">● &nbsp; CREATOR MODE</span></header>
+        <header className="emp-topbar"><div className="emp-breadcrumb">Workspace <span>/</span> AI Video Studio</div><div className="emp-top-actions"><span className="emp-top-pill">● &nbsp; CREATOR MODE</span><button type="button" className="emp-logout" onClick={async () => { await fetch("/api/v1/session", { method: "DELETE" }); window.location.reload(); }}>Cerrar sesión</button></div></header>
         <div className="emp-page">
           <div className="emp-hero">
             <div className="emp-eyebrow">TU ESTUDIO CREATIVO CON IA</div>
@@ -380,6 +383,7 @@ const STYLES = String.raw`
   .emp-dot { display: inline-block; width: 7px; height: 7px; background: #b4d6aa; border-radius: 50%; margin-right: 5px; }
   .emp-main { flex: 1; min-width: 0; }
   .emp-topbar { height: 78px; border-bottom: 1px solid #262329; display: flex; justify-content: space-between; align-items: center; padding: 0 46px; }
+  .emp-top-actions { display: flex; align-items: center; gap: 15px; }.emp-logout { color: #e5c4e8; background: #302436; border: 1px solid #58425e; padding: 10px 13px; border-radius: 10px; font-size: 11px; font-weight: 750; }
   .emp-breadcrumb { color: #9c939f; font-size: 13px; }.emp-breadcrumb span { margin: 0 10px; color: #514b55; }
   .emp-top-pill { border: 1px solid #4d3b4c; color: #ddbcda; padding: 9px 14px; border-radius: 30px; font-size: 10px; font-weight: 800; letter-spacing: 1.1px; }
   .emp-page { max-width: 1460px; margin: auto; padding: 40px 46px 22px; }
