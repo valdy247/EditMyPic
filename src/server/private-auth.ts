@@ -1,0 +1,126 @@
+// Server-only authentication for the single-owner EditMyPic studio.
+// Do not import this module from client components.
+const COOKIE_NAME = "__Host-editmypic_session";
+const SESSION_SECONDS = 60 * 60 * 12;
+const encoder = new TextEncoder();
+
+function credentials() {
+  const password = process.env.EDITMYPIC_PRIVATE_PASSWORD || "";
+  const secret = process.env.EDITMYPIC_SESSION_SECRET || "";
+  if (password.length < 20 || secret.length < 32) return null;
+  return { password, secret };
+}
+
+export function isPrivateAuthConfigured() {
+  return !!credentials();
+}
+
+function secureCookie(request: Request) {
+  return new URL(request.url).protocol === "https:";
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array) {
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index++) difference |= a[index] ^ b[index];
+  return difference === 0;
+}
+
+export async function checkPassword(candidate: unknown) {
+  const config = credentials();
+  if (!config || typeof candidate !== "string" || candidate.length > 512) return false;
+  const [actual, expected] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(candidate)),
+    crypto.subtle.digest("SHA-256", encoder.encode(config.password)),
+  ]);
+  return bytesEqual(new Uint8Array(actual), new Uint8Array(expected));
+}
+
+async function signingKey(secret: string) {
+  return crypto.subtle.importKey(
+    "raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]
+  );
+}
+
+function toBase64Url(value: Uint8Array) {
+  return Buffer.from(value).toString("base64url");
+}
+
+export async function issueSession() {
+  const config = credentials();
+  if (!config) throw new Error("Private access is not configured");
+  const payload = {
+    sub: "owner",
+    exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS,
+    nonce: crypto.randomUUID(),
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", await signingKey(config.secret), encoder.encode(encoded)));
+  return encoded + "." + toBase64Url(signature);
+}
+
+async function validSession(value: string) {
+  const config = credentials();
+  if (!config || value.length > 2048) return false;
+  const pieces = value.split(".");
+  if (pieces.length !== 2 || !/^[A-Za-z0-9_-]+$/.test(pieces[0]) || !/^[A-Za-z0-9_-]+$/.test(pieces[1])) return false;
+  try {
+    const verified = await crypto.subtle.verify(
+      "HMAC", await signingKey(config.secret),
+      Buffer.from(pieces[1], "base64url"), encoder.encode(pieces[0])
+    );
+    if (!verified) return false;
+    const payload = JSON.parse(Buffer.from(pieces[0], "base64url").toString("utf8"));
+    const now = Math.floor(Date.now() / 1000);
+    return payload.sub === "owner" && Number.isSafeInteger(payload.exp) && payload.exp > now && payload.exp <= now + SESSION_SECONDS;
+  } catch {
+    return false;
+  }
+}
+
+function readCookie(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  for (const entry of cookieHeader.split(";")) {
+    const [name, ...value] = entry.trim().split("=");
+    if (name === COOKIE_NAME) return value.join("=");
+  }
+  return "";
+}
+
+export async function isAuthorized(request: Request) {
+  const authorization = request.headers.get("authorization") || "";
+  if (authorization.startsWith("Bearer ")) return validSession(authorization.slice(7));
+  return validSession(readCookie(request));
+}
+
+export function isSameOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
+  if (!origin) return true; // Native apps don't send Origin.
+  try {
+    return new URL(origin).origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
+}
+
+export function isSafeAuthenticatedWrite(request: Request) {
+  if (request.headers.get("authorization")?.startsWith("Bearer ")) return true; // Native
+  return isSameOrigin(request); // Browser cookie sessions require same-origin.
+}
+
+export function privateSessionCookie(request: Request, token: string) {
+  return COOKIE_NAME + "=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + SESSION_SECONDS + (secureCookie(request) ? "; Secure" : "");
+}
+
+export function clearPrivateSessionCookie(request: Request) {
+  return COOKIE_NAME + "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + (secureCookie(request) ? "; Secure" : "");
+}
+
+export function unauthorizedResponse() {
+  return Response.json({ error: "Acceso privado. Inicia sesión para continuar." }, {
+    status: 401,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
