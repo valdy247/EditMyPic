@@ -94,6 +94,8 @@ export default function WebVideoStudio() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const historyRef = useRef<HTMLElement>(null);
   const pollInFlight = useRef(new Set<string>());
 
   useEffect(() => {
@@ -306,16 +308,16 @@ export default function WebVideoStudio() {
       <aside className="emp-sidebar">
         <div className="emp-brand"><span className="emp-logo">✦</span><span>EditMyPic<small>CREATOR STUDIO</small></span></div>
         <div className="emp-side-section">WORKSPACE</div>
-        <div className="emp-nav active">◈ <span>AI Video Studio</span></div>
+        <button type="button" className="emp-nav active" onClick={() => mainRef.current?.scrollTo({ top: 0, behavior: "smooth" })}>◈ <span>AI Video Studio</span></button>
         <div className="emp-side-section emp-side-gap">TU ESTUDIO</div>
-        <div className="emp-nav muted">▤ <span>Historial local</span><b>{jobs.length}</b></div>
+        <button type="button" className="emp-nav muted" onClick={() => historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>▤ <span>Historial local</span><b>{jobs.length}</b></button>
         <div className="emp-sidebar-bottom">
           <div className="emp-dot" /> Versión web para computadora
           <p>El editor de iPhone sigue funcionando por separado.</p>
         </div>
       </aside>
 
-      <main className="emp-main">
+      <main ref={mainRef} className="emp-main">
         <header className="emp-topbar"><div className="emp-breadcrumb">Workspace <span>/</span> AI Video Studio</div><div className="emp-top-actions"><span className="emp-top-pill">● &nbsp; CREATOR MODE</span><button type="button" className="emp-logout" onClick={async () => { await fetch("/api/v1/session", { method: "DELETE" }); window.location.reload(); }}>Cerrar sesión</button></div></header>
         <div className="emp-page">
           <div className="emp-hero">
@@ -388,7 +390,7 @@ export default function WebVideoStudio() {
                 <p className="emp-fineprint">Los enlaces de Runway pueden caducar. Guarda tus videos terminados en tu computadora.</p>
               </section>
 
-              <section className="emp-panel emp-history">
+              <section ref={historyRef} className="emp-panel emp-history">
                 <div className="emp-panel-heading"><div><div className="emp-step">03 / BIBLIOTECA</div><h2>Historial de videos</h2></div><span className="emp-count">{jobs.length}</span></div>
                 <div className="emp-history-list">
                   {jobs.length === 0 ? <div className="emp-empty-history">Todavía no hay generaciones guardadas en este navegador.</div> : jobs.map((job) => (
@@ -414,22 +416,22 @@ const STYLES = String.raw`
   button, input, textarea { font: inherit; }
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: .45; }
-  .emp-app { min-height: 100vh; display: flex; color: #f5f3f7; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0c0c0f; }
-  .emp-sidebar { width: 244px; flex: 0 0 244px; border-right: 1px solid #27252a; padding: 28px 17px; display: flex; flex-direction: column; min-height: 100vh; background: #101013; }
+  .emp-app { height: 100dvh; min-height: 0; overflow: hidden; display: flex; color: #f5f3f7; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0c0c0f; }
+  .emp-sidebar { width: 244px; flex: 0 0 244px; border-right: 1px solid #27252a; padding: 28px 17px; display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow-y: auto; background: #101013; }
   .emp-brand { display: flex; align-items: center; gap: 12px; padding: 5px 10px 40px; font-weight: 800; font-size: 22px; letter-spacing: -.8px; }
   .emp-brand small { display: block; font-size: 9px; font-weight: 700; color: #98919f; letter-spacing: 2px; margin-top: 3px; }
   .emp-logo { display: grid; place-items: center; width: 38px; height: 38px; background: linear-gradient(140deg, #f3b482, #d1a5fa); color: #24152b; border-radius: 12px; font-size: 25px; }
   .emp-side-section { color: #77717f; font-size: 10px; letter-spacing: 2px; font-weight: 800; padding: 0 12px 14px; }
   .emp-side-gap { padding-top: 32px; }
-  .emp-nav { border-radius: 11px; display: flex; align-items: center; gap: 12px; padding: 14px; font-size: 14px; font-weight: 700; }
+  .emp-nav { width: 100%; border: 0; text-align: left; background: transparent; color: inherit; border-radius: 11px; display: flex; align-items: center; gap: 12px; padding: 14px; font-size: 14px; font-weight: 700; }
   .emp-nav.active { background: #2b202f; color: #e8c8fc; border: 1px solid #4b3453; }
   .emp-nav.muted { color: #a49ca8; font-weight: 500; }
   .emp-nav b { margin-left: auto; color: #ddd; }
   .emp-sidebar-bottom { margin-top: auto; border-top: 1px solid #27252a; padding: 23px 9px 0; color: #bbb2bf; font-size: 11px; line-height: 1.6; }
   .emp-sidebar-bottom p { color: #716c78; margin: 8px 0 0; }
   .emp-dot { display: inline-block; width: 7px; height: 7px; background: #b4d6aa; border-radius: 50%; margin-right: 5px; }
-  .emp-main { flex: 1; min-width: 0; }
-  .emp-topbar { height: 78px; border-bottom: 1px solid #262329; display: flex; justify-content: space-between; align-items: center; padding: 0 46px; }
+  .emp-main { flex: 1; min-width: 0; height: 100dvh; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+  .emp-topbar { position: sticky; top: 0; z-index: 5; background: #0c0c0f; height: 78px; border-bottom: 1px solid #262329; display: flex; justify-content: space-between; align-items: center; padding: 0 46px; }
   .emp-top-actions { display: flex; align-items: center; gap: 15px; }.emp-logout { color: #e5c4e8; background: #302436; border: 1px solid #58425e; padding: 10px 13px; border-radius: 10px; font-size: 11px; font-weight: 750; }
   .emp-breadcrumb { color: #9c939f; font-size: 13px; }.emp-breadcrumb span { margin: 0 10px; color: #514b55; }
   .emp-top-pill { border: 1px solid #4d3b4c; color: #ddbcda; padding: 9px 14px; border-radius: 30px; font-size: 10px; font-weight: 800; letter-spacing: 1.1px; }
@@ -476,6 +478,7 @@ const STYLES = String.raw`
   .emp-history-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 8px; background: #403045; color: #f1c8ef; font-size: 12px; }
   .emp-history-copy { min-width: 0; flex: 1; }.emp-history-copy strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 750; }.emp-history-copy small { display: block; color: #938a97; font-size: 10px; margin-top: 5px; }.emp-mini-status { font-size: 9px; padding: 6px; }
   .emp-recover { border-top: 1px solid #342d37; margin-top: 20px; padding-top: 20px; }.emp-recover-row { display: flex; gap: 8px; }.emp-recover input { flex: 1; min-width: 0; color: #fff; background: #201e23; border: 1px solid #3d3540; outline: none; border-radius: 8px; padding: 11px; font-size: 12px; }.emp-recover-row button { border: 1px solid #715879; border-radius: 8px; background: #382a3d; color: #efd6f4; padding: 0 12px; font-size: 11px; font-weight: 800; }.emp-recover small { display: block; margin-top: 11px; color: #857b88; font-size: 10px; line-height: 1.5; }
+  .emp-history { scroll-margin-top: 96px; }
   .emp-footer { display: flex; justify-content: space-between; padding: 29px 0 10px; color: #6f6873; font-size: 11px; }
   @media (max-width: 1160px) { .emp-sidebar { width: 190px; flex-basis: 190px; }.emp-page { padding: 30px 24px; }.emp-topbar { padding: 0 24px; }.emp-columns { grid-template-columns: minmax(0,1fr); }.emp-right { display: grid; grid-template-columns: 1fr 1fr; }.emp-stage { height: 300px; } }
   @media (max-width: 790px) { .emp-sidebar { display: none; }.emp-topbar { height: 60px; }.emp-top-pill { display: none; }.emp-page { padding: 27px 16px; }.emp-hero h1 { letter-spacing: -1px; }.emp-columns,.emp-right { display: flex; flex-direction: column; }.emp-panel { width: 100%; padding: 19px; }.emp-stage { height: 350px; }.emp-footer span { display: none; } }
