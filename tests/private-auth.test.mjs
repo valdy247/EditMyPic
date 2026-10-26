@@ -83,3 +83,48 @@ test("unauthenticated requests get a non-cacheable 401", async () => {
   assert.equal(response.status, 401);
   assert.equal(response.headers.get("Cache-Control"), "no-store");
 });
+
+test("EAS production browser login remains same-origin behind an internal reverse proxy", async () => {
+  setConfig();
+  const proxiedLogin = new Request("http://internal-eas-host:3000/api/v1/session", {
+    method: "POST",
+    headers: {
+      Origin: "https://editmypic.expo.app",
+      "Sec-Fetch-Site": "same-origin",
+    },
+  });
+  assert.equal(isSameOrigin(proxiedLogin), true);
+  const token = await issueSession();
+  const cookie = privateSessionCookie(proxiedLogin, token);
+  assert.match(cookie, /^__Host-editmypic_session=/);
+  assert.match(cookie, /; Secure/);
+  const proxiedRead = new Request("http://internal-eas-host:3000/api/v1/video", {
+    headers: { Cookie: cookie.split(";")[0] },
+  });
+  assert.equal(await isAuthorized(proxiedRead), true);
+});
+
+test("production allowlist rejects lookalike domains and cross-site fetches", () => {
+  const url = "http://internal-eas-host:3000/api/v1/session";
+  assert.equal(isSameOrigin(new Request(url, {
+    method: "POST",
+    headers: {
+      Origin: "https://editmypic.expo.app.evil.example",
+      "Sec-Fetch-Site": "same-origin",
+    },
+  })), false);
+  assert.equal(isSameOrigin(new Request(url, {
+    method: "POST",
+    headers: {
+      Origin: "https://editmypic.expo.app",
+      "Sec-Fetch-Site": "cross-site",
+    },
+  })), false);
+  assert.equal(isSameOrigin(new Request(url, {
+    method: "POST",
+    headers: {
+      Origin: "http://editmypic.expo.app",
+      "Sec-Fetch-Site": "same-origin",
+    },
+  })), false);
+});
