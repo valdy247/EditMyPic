@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, SafeAreaView, Stack, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { Stack } from "expo-router";
 
 const BASE = process.env.EXPO_PUBLIC_EDIT_API_URL?.trim() || "";
 const SESSION_API = /^https:\/\//i.test(BASE)
