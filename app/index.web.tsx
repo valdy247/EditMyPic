@@ -17,10 +17,8 @@ type Job = {
 };
 
 const STORAGE_KEY = "editmypic:web-video-history:v1";
-const API_BASE = process.env.EXPO_PUBLIC_EDIT_API_URL?.trim() || "";
-const API = /^https:\/\//i.test(API_BASE)
-  ? API_BASE.replace(/\/$/, "") + "/api/v1/video"
-  : "/api/v1/video";
+// Web always uses same-origin API routes (including EAS preview URLs).
+const API = "/api/v1/video";
 const FINISHED = ["SUCCEEDED", "FAILED", "CANCELED"];
 
 function errorMessage(error: unknown) {
