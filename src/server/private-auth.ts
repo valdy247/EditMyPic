@@ -2,6 +2,9 @@
 // Do not import this module from client components.
 const SECURE_COOKIE_NAME = "__Host-editmypic_session";
 const DEV_COOKIE_NAME = "editmypic_dev_session";
+// EAS Hosting can pass an internal request URL through its reverse proxy.
+// Only this exact public origin is trusted as an additional browser origin.
+const PRODUCTION_ORIGIN = "https://editmypic.expo.app";
 const SESSION_SECONDS = 60 * 60 * 12;
 const encoder = new TextEncoder();
 
@@ -17,7 +20,10 @@ export function isPrivateAuthConfigured() {
 }
 
 function secureCookie(request: Request) {
-  return new URL(request.url).protocol === "https:";
+  const url = new URL(request.url);
+  // Do not rely solely on the internal URL protocol behind EAS Hosting:
+  // the public HTTPS endpoint may be proxied to an internal HTTP URL.
+  return url.protocol === "https:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
 }
 
 function cookieName(request: Request) {
@@ -114,7 +120,12 @@ export function isSameOrigin(request: Request) {
   if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
   if (!origin) return true; // Native apps don't send Origin.
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const suppliedOrigin = new URL(origin).origin;
+    // Preserve same-origin enforcement locally and for EAS previews.
+    // In production the public hostname can differ from the internal
+    // request URL after the EAS reverse proxy forwards the request.
+    return suppliedOrigin === new URL(request.url).origin ||
+      suppliedOrigin === PRODUCTION_ORIGIN;
   } catch {
     return false;
   }
