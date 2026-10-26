@@ -89,6 +89,8 @@ export default function WebVideoStudio() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [draggingImage, setDraggingImage] = useState(false);
+  const dragDepth = useRef(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -160,9 +162,8 @@ export default function WebVideoStudio() {
     return () => window.clearInterval(timer);
   }, [loaded, jobs]);
 
-  async function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  async function prepareImage(file: File) {
+    if (uploading) return;
     setError("");
     setNotice("");
     setUploading(true);
@@ -175,8 +176,46 @@ export default function WebVideoStudio() {
       setError(errorMessage(err));
     } finally {
       setUploading(false);
-      event.target.value = "";
     }
+  }
+
+  async function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) await prepareImage(file);
+  }
+
+  function onImageDragEnter(event: React.DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (uploading) return;
+    dragDepth.current += 1;
+    setDraggingImage(true);
+  }
+
+  function onImageDragLeave(event: React.DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDraggingImage(false);
+  }
+
+  function onImageDragOver(event: React.DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = uploading ? "none" : "copy";
+  }
+
+  function onImageDrop(event: React.DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepth.current = 0;
+    setDraggingImage(false);
+    if (uploading) return;
+    const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/"))
+      || event.dataTransfer.files[0];
+    if (file) void prepareImage(file);
+    else setError("Arrastra un archivo de imagen JPG, PNG o WebP.");
   }
 
   async function generate() {
@@ -298,9 +337,19 @@ export default function WebVideoStudio() {
                 <div className="emp-field">
                   <label className="emp-label">Imagen de referencia</label>
                   <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={onFileChange} style={{ display: "none" }} />
-                  <button type="button" className={"emp-upload " + (imagePreview ? "has-image" : "")} onClick={() => fileInput.current?.click()} disabled={uploading}>
+                  <button
+                    type="button"
+                    className={"emp-upload " + (imagePreview ? "has-image " : "") + (draggingImage ? "drag-over" : "")}
+                    onClick={() => fileInput.current?.click()}
+                    onDragEnter={onImageDragEnter}
+                    onDragLeave={onImageDragLeave}
+                    onDragOver={onImageDragOver}
+                    onDrop={onImageDrop}
+                    disabled={uploading}
+                    aria-label="Arrastra una imagen aquí o haz clic para seleccionarla"
+                  >
                     {imagePreview ? <img src={imagePreview} alt="Vista previa de referencia" /> : <span className="emp-upload-icon">↑</span>}
-                    <span><strong>{uploading ? "Preparando imagen..." : imageName || "Selecciona una imagen"}</strong><small>JPG, PNG o WebP · Se optimiza automáticamente</small></span>
+                    <span><strong>{uploading ? "Preparando imagen..." : draggingImage ? "Suelta la imagen aquí" : imageName || "Arrastra una imagen aquí o selecciónala"}</strong><small>JPG, PNG o WebP · Arrastra y suelta o haz clic en Explorar</small></span>
                     <span className="emp-upload-cta">Explorar</span>
                   </button>
                 </div>
@@ -399,6 +448,7 @@ const STYLES = String.raw`
   .emp-toggle button.chosen { background: #35283b; border-color: #9a6baf; color: #f5d9ff; }
   .emp-field { margin-top: 23px; }
   .emp-upload { width: 100%; background: #1e1c20; border: 1px dashed #615365; border-radius: 12px; display: flex; align-items: center; gap: 13px; padding: 16px; text-align: left; color: #f3eef5; min-height: 91px; }
+  .emp-upload.drag-over { border-color: #e7b8db; background: #36263d; outline: 2px solid rgba(231,184,219,.25); outline-offset: 2px; }
   .emp-upload.has-image { border-style: solid; }.emp-upload img { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; }
   .emp-upload-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: #372a3c; color: #e2b6ec; font-size: 25px; }
   .emp-upload span:nth-last-child(2) { min-width: 0; flex: 1; }.emp-upload strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
