@@ -1,3 +1,5 @@
+import { isAuthorized, isPrivateAuthConfigured, isSafeAuthenticatedWrite, unauthorizedResponse } from "@/src/server/private-auth";
+
 ﻿
 const BASE = "https://api.dev.runwayml.com/v1";
 const VERSION = "2024-11-06";
@@ -36,6 +38,8 @@ function validImage(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  if (!isPrivateAuthConfigured()) return json({ error: "Acceso privado sin configurar." }, 503);
+  if (!await isAuthorized(request) || !isSafeAuthenticatedWrite(request)) return unauthorizedResponse();
   if (!process.env.RUNWAYML_API_SECRET) {
     return json({ error: "API de Runway no configurada." }, 503);
   }
@@ -136,6 +140,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  if (!isPrivateAuthConfigured()) return json({ error: "Acceso privado sin configurar." }, 503);
+  if (!await isAuthorized(request)) return unauthorizedResponse();
   if (!process.env.RUNWAYML_API_SECRET) {
     return json({ error: "API no configurada." }, 503);
   }
